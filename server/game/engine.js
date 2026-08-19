@@ -81,6 +81,7 @@ class GameEngine {
     this.previousTrickWinnerSeat = null;
     this.endGameRequests = new Set();
     this.lastTrick = null;
+    this.pendingTrickWinner = null;
   }
 
   addPlayer(id, name) {
@@ -297,6 +298,7 @@ class GameEngine {
 
   playCard(playerId, cardId) {
     if (this.phase !== 'playing') return { error: 'Not in playing phase' };
+    if (this.pendingTrickWinner) return { error: 'Trick resolving' };
     const seat = this._seatOfPlayer(playerId);
     if (seat !== this.currentPlayerSeat) return { error: 'Not your turn' };
 
@@ -367,6 +369,18 @@ class GameEngine {
     }
 
     const winner = this.currentTrick[winnerIdx];
+    this.pendingTrickWinner = {
+      seat: winner.seat,
+      playerId: winner.playerId,
+    };
+
+    return { ok: true, trickComplete: true, pending: true };
+  }
+
+  resolvePendingTrick() {
+    if (!this.pendingTrickWinner) return { error: 'No pending trick' };
+
+    const winner = this.pendingTrickWinner;
     const winnerEntityId = this._entityId(winner.seat);
     this.tricksWon[winnerEntityId]++;
 
@@ -380,6 +394,7 @@ class GameEngine {
     this.previousTrickWinnerSeat = winner.seat;
     this.currentTrick = [];
     this.leadSuit = null;
+    this.pendingTrickWinner = null;
 
     if (this.trickNumber >= this.maxTricks) {
       return this._endRound();
@@ -389,7 +404,7 @@ class GameEngine {
     this.leaderSeat = winner.seat;
     this.currentPlayerSeat = winner.seat;
 
-    return { ok: true, trickComplete: true, winner: winner };
+    return { ok: true };
   }
 
   _endRound() {
@@ -505,6 +520,10 @@ class GameEngine {
       cumulativeScores: { ...this.cumulativeScores },
       endGameRequests: [...this.endGameRequests],
       lastTrick: this.lastTrick,
+      pendingTrickWinner: this.pendingTrickWinner ? {
+        seat: this.pendingTrickWinner.seat,
+        playerId: this.pendingTrickWinner.playerId,
+      } : null,
     };
   }
 }

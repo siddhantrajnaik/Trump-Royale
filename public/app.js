@@ -271,43 +271,51 @@ function getPartnerMark(player) {
   return '';
 }
 
-function trickCardPosition(seatOffset, count) {
-  if (count === 4) {
-    return [{ x: 0, y: 30 }, { x: -60, y: 0 }, { x: 0, y: -30 }, { x: 60, y: 0 }][seatOffset];
-  }
-  const angles = [90, 150, 210, 270, 330, 30];
-  const a = angles[seatOffset] * Math.PI / 180;
-  return { x: Math.cos(a) * 55, y: Math.sin(a) * 35 };
-}
-
 function renderTrick() {
   const area = $('#trick-area');
   area.innerHTML = '';
 
   const cards = state.currentTrick;
   if (!cards || cards.length === 0) {
+    const info = $('#trick-info');
+    info.innerHTML = '';
     if (state.lastTrick && state.phase === 'playing') {
-      const info = $('#trick-info');
       const winner = state.players.find(p => p.seat === state.lastTrick.winnerSeat);
       info.textContent = winner ? `${winner.name} won trick ${state.lastTrick.trickNumber}` : '';
     }
     return;
   }
 
-  const mySeat = state.you.seat;
+  const pendingWinner = state.pendingTrickWinner;
+
   for (const entry of cards) {
-    const offset = (entry.seat - mySeat + state.playerCount) % state.playerCount;
-    const pos = trickCardPosition(offset, state.playerCount);
     const slot = document.createElement('div');
     slot.className = 'played-card-slot';
-    slot.style.transform = `translate(${pos.x}px, ${pos.y}px)`;
+    if (pendingWinner && entry.seat === pendingWinner.seat) slot.classList.add('winner');
 
     const p = state.players.find(pl => pl.seat === entry.seat);
     slot.innerHTML = renderCardHTML(entry.card) + `<span class="who">${esc(p?.name || '')}</span>`;
     area.appendChild(slot);
   }
 
-  $('#trick-info').textContent = '';
+  const info = $('#trick-info');
+  info.innerHTML = '';
+  if (pendingWinner) {
+    const winner = state.players.find(p => p.seat === pendingWinner.seat);
+    const label = document.createElement('div');
+    label.className = 'trick-winner-label';
+    label.textContent = winner ? `${winner.name} wins the trick` : '';
+    const btn = document.createElement('button');
+    btn.className = 'btn primary';
+    btn.id = 'btn-next-trick';
+    btn.textContent = 'Next Trick';
+    btn.addEventListener('click', () => {
+      btn.disabled = true;
+      socket.emit('next-trick', {}, () => {});
+    });
+    info.appendChild(label);
+    info.appendChild(btn);
+  }
 }
 
 function renderHand() {

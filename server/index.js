@@ -142,8 +142,30 @@ io.on('connection', (socket) => {
   socket.on('play-card', ({ cardId }, ack) => {
     const room = rooms.get(currentRoom);
     if (!room) return ack?.({ error: 'No room' });
+    const roomCode = currentRoom;
     const result = room.engine.playCard(currentPlayerId, cardId);
     if (result.error) return ack?.({ error: result.error });
+    ack?.({ ok: true });
+    broadcastState(roomCode);
+
+    if (result.pending) {
+      room.trickTimer = setTimeout(() => {
+        const r = rooms.get(roomCode);
+        if (!r) return;
+        r.trickTimer = null;
+        r.engine.resolvePendingTrick();
+        broadcastState(roomCode);
+      }, 20000);
+    }
+  });
+
+  socket.on('next-trick', (_, ack) => {
+    const room = rooms.get(currentRoom);
+    if (!room) return ack?.({ error: 'No room' });
+    if (!room.engine.pendingTrickWinner) return ack?.({ ok: true });
+    clearTimeout(room.trickTimer);
+    room.trickTimer = null;
+    room.engine.resolvePendingTrick();
     ack?.({ ok: true });
     broadcastState(currentRoom);
   });
