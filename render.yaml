@@ -1,0 +1,10 @@
+services:
+  - type: web
+    runtime: node
+    name: trump-card-royal
+    plan: free
+    buildCommand: npm install
+    startCommand: node server/index.js
+    envVars:
+      - key: NODE_ENV
+        value: production

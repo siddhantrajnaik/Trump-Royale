@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Trump Card Royal</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🃏</text></svg>">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div id="app">
+
+    <div id="screen-menu" class="screen active">
+      <div class="menu-box">
+        <h1>Trump Card Royal</h1>
+        <input type="text" id="input-name" placeholder="Your Name" maxlength="16" autocomplete="off">
+        <button id="btn-create" class="btn primary">Create Room</button>
+        <div class="divider">or</div>
+        <input type="text" id="input-code" placeholder="Room Code" maxlength="4" autocomplete="off" style="text-transform:uppercase">
+        <button id="btn-join" class="btn">Join Room</button>
+        <p id="menu-error" class="error"></p>
+      </div>
+    </div>
+
+    <div id="screen-create" class="screen">
+      <div class="menu-box">
+        <h1>Create Room</h1>
+        <label>Players</label>
+        <div class="btn-group">
+          <button class="btn toggle active" data-pc="4">4 Players</button>
+          <button class="btn toggle" data-pc="6">6 Players</button>
+        </div>
+        <label id="mode-label">Mode</label>
+        <div id="mode-group" class="btn-group">
+          <button class="btn toggle active" data-mode="2v2">2v2 Teams</button>
+          <button class="btn toggle" data-mode="ffa">Free-for-All</button>
+        </div>
+        <button id="btn-confirm-create" class="btn primary">Create</button>
+        <button id="btn-back-menu" class="btn">Back</button>
+      </div>
+    </div>
+
+    <div id="screen-lobby" class="screen">
+      <div class="menu-box">
+        <h1>Lobby</h1>
+        <p class="room-code">Room: <span id="lobby-code"></span></p>
+        <p class="room-info" id="lobby-info"></p>
+        <ul id="lobby-players"></ul>
+        <button id="btn-start" class="btn primary" style="display:none">Start Game</button>
+        <p id="lobby-waiting" class="subtle">Waiting for players...</p>
+      </div>
+    </div>
+
+    <div id="screen-game" class="screen">
+      <div id="game-header">
+        <div id="trump-display"></div>
+        <div id="round-display"></div>
+        <div id="score-toggle-btn" title="Scoreboard">📊</div>
+      </div>
+
+      <div id="table">
+        <div id="seats"></div>
+        <div id="trick-area"></div>
+        <div id="trick-info"></div>
+      </div>
+
+      <div id="call-overlay" class="overlay" style="display:none">
+        <div class="overlay-box">
+          <h2>Make Your Call</h2>
+          <p id="call-prompt"></p>
+          <div id="call-input-row">
+            <button id="call-minus" class="btn small">−</button>
+            <span id="call-value">1</span>
+            <button id="call-plus" class="btn small">+</button>
+          </div>
+          <button id="btn-submit-call" class="btn primary">Submit Call</button>
+        </div>
+      </div>
+
+      <div id="call-waiting" class="overlay" style="display:none">
+        <div class="overlay-box">
+          <h2>Calls in Progress</h2>
+          <p id="call-wait-text"></p>
+        </div>
+      </div>
+
+      <div id="your-info"></div>
+      <div id="hand-area">
+        <div id="hand"></div>
+      </div>
+
+      <div id="scoreboard" style="display:none">
+        <div class="overlay-box wide">
+          <h2>Scoreboard</h2>
+          <table id="score-table"></table>
+          <button id="close-scores" class="btn">Close</button>
+        </div>
+      </div>
+
+      <div id="round-end-overlay" class="overlay" style="display:none">
+        <div class="overlay-box wide">
+          <h2>Round Complete</h2>
+          <table id="round-end-table"></table>
+          <div id="round-end-actions"></div>
+        </div>
+      </div>
+
+      <div id="game-over-overlay" class="overlay" style="display:none">
+        <div class="overlay-box wide">
+          <h2>Game Over</h2>
+          <table id="game-over-table"></table>
+          <button id="btn-back-home" class="btn primary">Back to Menu</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
