@@ -120,10 +120,65 @@ $('#btn-back-home').addEventListener('click', () => {
 const savedName = localStorage.getItem('tcr_name');
 if (savedName) $('#input-name').value = savedName;
 
+// --- Sound ---
+const soundBtn = $('#sound-toggle-btn');
+function refreshSoundBtn() {
+  soundBtn.textContent = Sound.isEnabled() ? '🔊' : '🔇';
+}
+soundBtn.addEventListener('click', () => {
+  Sound.toggle();
+  refreshSoundBtn();
+});
+refreshSoundBtn();
+
+function myTeamSeats(s) {
+  if (!s.teams || !s.you) return null;
+  const team = s.teams.find(t => t.seats.includes(s.you.seat));
+  return team ? team.seats : null;
+}
+
+// Sounds are driven off state transitions rather than local actions, so every
+// player hears the same cues no matter who triggered them.
+function playTransitionSounds(prev, next) {
+  if (!prev || !next || !next.you) return;
+
+  if (prev.phase !== next.phase && next.phase === 'calling') {
+    Sound.deal(next.playerCount);
+    setTimeout(() => Sound.trumpReveal(), 550);
+  }
+
+  const prevCalls = prev.callInfo ? prev.callInfo.submitted : 0;
+  const nextCalls = next.callInfo ? next.callInfo.submitted : 0;
+  if (nextCalls > prevCalls) Sound.callMade();
+
+  const prevCards = prev.currentTrick ? prev.currentTrick.length : 0;
+  const nextCards = next.currentTrick ? next.currentTrick.length : 0;
+  if (nextCards > prevCards) Sound.cardPlay();
+
+  if (next.pendingTrickWinner && !prev.pendingTrickWinner) {
+    const winSeat = next.pendingTrickWinner.seat;
+    const mates = myTeamSeats(next);
+    const ours = mates ? mates.includes(winSeat) : winSeat === next.you.seat;
+    // Let the card-play sound land before the verdict.
+    setTimeout(() => ours ? Sound.trickWin() : Sound.trickLose(), 260);
+  }
+
+  const wasMyTurn = prev.phase === 'playing' && prev.currentPlayerSeat === prev.you.seat;
+  const isMyTurn = next.phase === 'playing' && next.currentPlayerSeat === next.you.seat;
+  if (isMyTurn && !wasMyTurn && !next.pendingTrickWinner) Sound.yourTurn();
+
+  if (prev.phase !== next.phase) {
+    if (next.phase === 'round_end') Sound.roundEnd();
+    else if (next.phase === 'game_over') Sound.gameOver();
+  }
+}
+
 // --- State rendering ---
 socket.on('game-state', (s) => {
+  const prev = state;
   state = s;
   render();
+  playTransitionSounds(prev, s);
 });
 
 function render() {
