@@ -24,15 +24,14 @@ function buildDeck(playerCount) {
     const idx = cards.findIndex(c => c.suit === 'diamonds' && c.rank === '2');
     cards.splice(idx, 1);
   } else if (playerCount === 5) {
-    // 5P_FFA: standard 52 minus 2S and 2C, giving exactly 50 cards / 10 per
-    // player. Returns before the Joker push below: the deck is fixed at 50, and
-    // a 51st card would leave the color card undealt rather than landing as the
-    // dealer's final card the way it does in the 4- and 6-player decks.
-    for (const suit of ['spades', 'clubs']) {
+    // 5P_FFA: standard 52 minus 2S, 2C and 2H, plus the Joker pushed below,
+    // giving exactly 50 cards / 10 per player. The third 2 is what makes room
+    // for the Joker while keeping the count divisible, so the color card still
+    // lands as the dealer's final card the way it does in the other decks.
+    for (const suit of ['spades', 'clubs', 'hearts']) {
       const idx = cards.findIndex(c => c.suit === suit && c.rank === '2');
       cards.splice(idx, 1);
     }
-    return cards;
   } else {
     for (let i = cards.length - 1; i >= 0; i--) {
       if (cards[i].rank === '2') cards.splice(i, 1);
@@ -287,7 +286,11 @@ class GameEngine {
 
     if (isLeading) {
       if (this.previousTrickWinnerSeat === seat) {
-        return hand.filter(c => c.rank !== 'JOKER');
+        const nonJoker = hand.filter(c => c.rank !== 'JOKER');
+        // The Joker being the last card standing outranks the no-Joker-lead
+        // rule: without this the player has no legal move and the round cannot
+        // be completed at all.
+        if (nonJoker.length > 0) return nonJoker;
       }
       return [...hand];
     }
