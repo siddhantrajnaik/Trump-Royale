@@ -48,8 +48,9 @@ io.on('connection', (socket) => {
 
   socket.on('create-room', ({ playerName, gameMode, playerCount }, ack) => {
     playerCount = parseInt(playerCount);
-    if (![4, 6].includes(playerCount)) return ack?.({ error: 'Player count must be 4 or 6' });
+    if (![4, 5, 6].includes(playerCount)) return ack?.({ error: 'Player count must be 4, 5 or 6' });
     if (playerCount === 6 && gameMode !== '3v3') gameMode = '3v3';
+    if (playerCount === 5) gameMode = 'ffa'; // 5P_FFA is free-for-all only
     if (playerCount === 4 && !['2v2', 'ffa'].includes(gameMode)) return ack?.({ error: 'Invalid mode' });
 
     const code = generateCode();

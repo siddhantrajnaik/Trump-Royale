@@ -58,9 +58,15 @@ $$('[data-pc]').forEach(btn => {
       $('#mode-group').style.display = 'none';
       $('#mode-label').style.display = 'none';
       selectedMode = '3v3';
+    } else if (selectedPC === 5) {
+      $('#mode-group').style.display = 'none';
+      $('#mode-label').style.display = 'none';
+      selectedMode = 'ffa';
     } else {
       $('#mode-group').style.display = 'flex';
       $('#mode-label').style.display = 'block';
+      // Re-sync with the highlighted toggle, which 5- and 6-player left behind.
+      selectedMode = $('[data-mode].active')?.dataset.mode || '2v2';
     }
   });
 });
@@ -265,9 +271,12 @@ function renderHeader() {
 }
 
 function seatPositions(count, mySeat) {
-  const positions = count === 4
-    ? [{ x: 50, y: 85 }, { x: 8, y: 50 }, { x: 50, y: 12 }, { x: 92, y: 50 }]
-    : [{ x: 50, y: 85 }, { x: 8, y: 68 }, { x: 8, y: 28 }, { x: 50, y: 12 }, { x: 92, y: 28 }, { x: 92, y: 68 }];
+  const LAYOUTS = {
+    4: [{ x: 50, y: 85 }, { x: 8, y: 50 }, { x: 50, y: 12 }, { x: 92, y: 50 }],
+    5: [{ x: 50, y: 85 }, { x: 9, y: 62 }, { x: 26, y: 14 }, { x: 74, y: 14 }, { x: 91, y: 62 }],
+    6: [{ x: 50, y: 85 }, { x: 8, y: 68 }, { x: 8, y: 28 }, { x: 50, y: 12 }, { x: 92, y: 28 }, { x: 92, y: 68 }],
+  };
+  const positions = LAYOUTS[count] || LAYOUTS[6];
 
   const rotated = [];
   for (let i = 0; i < count; i++) {

@@ -23,6 +23,16 @@ function buildDeck(playerCount) {
   if (playerCount === 4) {
     const idx = cards.findIndex(c => c.suit === 'diamonds' && c.rank === '2');
     cards.splice(idx, 1);
+  } else if (playerCount === 5) {
+    // 5P_FFA: standard 52 minus 2S and 2C, giving exactly 50 cards / 10 per
+    // player. Returns before the Joker push below: the deck is fixed at 50, and
+    // a 51st card would leave the color card undealt rather than landing as the
+    // dealer's final card the way it does in the 4- and 6-player decks.
+    for (const suit of ['spades', 'clubs']) {
+      const idx = cards.findIndex(c => c.suit === suit && c.rank === '2');
+      cards.splice(idx, 1);
+    }
+    return cards;
   } else {
     for (let i = cards.length - 1; i >= 0; i--) {
       if (cards[i].rank === '2') cards.splice(i, 1);
@@ -44,7 +54,8 @@ function shuffle(arr) {
 }
 
 function calculateScore(call, tricksTaken, playerCount) {
-  const specialCall = playerCount === 4 ? 7 : 5;
+  // 5P_FFA uses the plain formula only - no doubled call.
+  const specialCall = playerCount === 5 ? null : (playerCount === 4 ? 7 : 5);
   if (tricksTaken >= call) {
     const base = call === specialCall ? call * 2 : call;
     const over = tricksTaken - call;
@@ -57,7 +68,7 @@ class GameEngine {
   constructor(gameMode, playerCount) {
     this.gameMode = gameMode;
     this.playerCount = playerCount;
-    this.maxTricks = playerCount === 4 ? 13 : 8;
+    this.maxTricks = playerCount === 4 ? 13 : playerCount === 5 ? 10 : 8;
     this.players = [];
     this.teams = [];
     this.phase = 'lobby';
@@ -177,7 +188,7 @@ class GameEngine {
     this.trumpSuit = colorCard.suit;
     deck.push(colorCard);
 
-    const cardsPerPlayer = this.playerCount === 4 ? 13 : 8;
+    const cardsPerPlayer = this.playerCount === 4 ? 13 : this.playerCount === 5 ? 10 : 8;
     this.hands = {};
     for (let i = 0; i < this.playerCount; i++) {
       const seat = (this.colorPickerSeat + i) % this.playerCount;
