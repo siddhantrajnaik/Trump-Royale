@@ -40,6 +40,7 @@ $('#btn-join').addEventListener('click', async () => {
   if (res.error) { $('#menu-error').textContent = res.error; return; }
   myPlayerId = res.playerId;
   localStorage.setItem('tcr_pid', myPlayerId);
+  rememberRoom(code);
   showScreen('screen-lobby');
 });
 
@@ -85,6 +86,7 @@ $('#btn-confirm-create').addEventListener('click', async () => {
   if (res.error) { alert(res.error); return; }
   myPlayerId = res.playerId;
   localStorage.setItem('tcr_pid', myPlayerId);
+  rememberRoom(res.roomCode);
   showScreen('screen-lobby');
 });
 
@@ -119,12 +121,72 @@ $('#close-scores').addEventListener('click', () => {
 $('#btn-back-home').addEventListener('click', () => {
   state = null;
   myPlayerId = null;
+  forgetRoom();
   showScreen('screen-menu');
+});
+
+// --- Rejoin ---
+// A dropped player keeps their seat as long as somebody is still in the room,
+// but they can only get back in with the room code, which is exactly what gets
+// lost when a phone locks and the tab reloads. So we hang on to it for them.
+function rememberRoom(code) {
+  if (code) localStorage.setItem('tcr_room', String(code).toUpperCase());
+  refreshRejoin();
+}
+
+function forgetRoom() {
+  localStorage.removeItem('tcr_room');
+  refreshRejoin();
+}
+
+function refreshRejoin() {
+  const btn = $('#btn-rejoin');
+  const hint = $('#rejoin-hint');
+  const divider = $('#rejoin-divider');
+  const createBtn = $('#btn-create');
+  if (!btn) return;
+
+  const code = localStorage.getItem('tcr_room');
+  const name = localStorage.getItem('tcr_name');
+  const show = !!(code && name);
+
+  btn.style.display = show ? 'block' : 'none';
+  hint.style.display = show ? 'block' : 'none';
+  divider.style.display = show ? 'block' : 'none';
+  if (show) {
+    btn.textContent = 'Rejoin room ' + code;
+    hint.textContent = 'as ' + name;
+  }
+  // Only one gold button at a time, so the obvious action stays obvious.
+  createBtn.classList.toggle('primary', !show);
+}
+
+$('#btn-rejoin').addEventListener('click', async () => {
+  const code = localStorage.getItem('tcr_room');
+  const name = localStorage.getItem('tcr_name');
+  if (!code || !name) { forgetRoom(); return; }
+
+  const btn = $('#btn-rejoin');
+  btn.disabled = true;
+  $('#menu-error').textContent = '';
+  const res = await emit('join-room', { roomCode: code, playerName: name });
+  btn.disabled = false;
+
+  if (res.error) {
+    $('#menu-error').textContent = res.error;
+    // The room is gone for good; stop offering a door that leads nowhere.
+    if (/not found/i.test(res.error)) forgetRoom();
+    return;
+  }
+  myPlayerId = res.playerId;
+  localStorage.setItem('tcr_pid', myPlayerId);
+  rememberRoom(code);
 });
 
 // --- Restore name ---
 const savedName = localStorage.getItem('tcr_name');
 if (savedName) $('#input-name').value = savedName;
+refreshRejoin();
 
 // --- Sound ---
 const soundBtn = $('#sound-toggle-btn');
