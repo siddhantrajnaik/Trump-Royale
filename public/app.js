@@ -227,6 +227,7 @@ function renderGame() {
   renderHeader();
   renderSeats();
   renderTrick();
+  renderConnectionBanner();
   renderYourInfo();
   renderHand();
   renderCallOverlay();
@@ -305,6 +306,7 @@ function renderSeats() {
     let nameClass = 'seat-name';
     if (p.isDealer) nameClass += ' dealer';
     if (p.isCurrentTurn) nameClass += ' current-turn';
+    if (!p.connected) nameClass += ' offline';
 
     const entityId = getEntityId(p);
     const tricks = state.tricksWon[entityId] ?? '';
@@ -313,7 +315,7 @@ function renderSeats() {
 
     div.innerHTML = `
       <div class="${nameClass}">${esc(p.name)}${partnerMark}</div>
-      <div class="seat-cards">${p.cardsRemaining} cards${p.isDealer ? ' · D' : ''}${p.isColorPicker ? ' · CP' : ''}</div>
+      <div class="seat-cards">${p.connected ? '' : 'offline · '}${p.cardsRemaining} cards${p.isDealer ? ' · D' : ''}${p.isColorPicker ? ' · CP' : ''}</div>
       ${callText ? `<div class="seat-call">${callText}</div>` : ''}
       ${tricks !== '' && state.phase === 'playing' ? `<div class="seat-tricks">Tricks: ${tricks}</div>` : ''}
     `;
@@ -380,6 +382,35 @@ function renderTrick() {
     info.appendChild(label);
     info.appendChild(btn);
   }
+}
+
+function renderConnectionBanner() {
+  const el = $('#connection-banner');
+  if (!el) return;
+  const offline = (state.players || []).filter(p => !p.connected);
+
+  if (!offline.length) {
+    el.style.display = 'none';
+    el.innerHTML = '';
+    return;
+  }
+
+  const stalled = state.waitingFor;
+  el.style.display = 'block';
+  el.className = stalled ? 'stalled' : '';
+
+  const head = document.createElement('strong');
+  const sub = document.createElement('span');
+  if (stalled) {
+    head.textContent = 'Waiting for ' + stalled.name + ' to reconnect';
+    sub.textContent = 'It is their turn, so play is paused. They can rejoin with the room code and the exact name "' + stalled.name + '".';
+  } else {
+    head.textContent = 'Disconnected: ' + offline.map(p => p.name).join(', ');
+    sub.textContent = 'They can rejoin with the room code and their exact name.';
+  }
+  el.innerHTML = '';
+  el.appendChild(head);
+  el.appendChild(sub);
 }
 
 function renderHand() {
@@ -492,7 +523,7 @@ function renderRoundEnd() {
   if (state.endGameRequests.length > 0) {
     const info = document.createElement('p');
     info.className = 'subtle';
-    info.textContent = `${state.endGameRequests.length}/${state.playerCount} want to end`;
+    info.textContent = `${state.endGameRequests.length}/${state.endGameNeeded ?? state.playerCount} want to end`;
     actions.appendChild(info);
   }
 }

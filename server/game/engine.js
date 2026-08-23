@@ -443,9 +443,18 @@ class GameEngine {
     return { ok: true };
   }
 
+  _endGameTally() {
+    // Only players who are present can vote, so requiring every seat makes
+    // ending the game impossible as soon as one person drops.
+    const present = this.players.filter(p => p.connected);
+    const votes = present.filter(p => this.endGameRequests.has(p.id)).length;
+    return { votes, needed: present.length };
+  }
+
   requestEndGame(playerId) {
     this.endGameRequests.add(playerId);
-    if (this.endGameRequests.size >= this.playerCount) {
+    const { votes, needed } = this._endGameTally();
+    if (needed > 0 && votes >= needed) {
       this.phase = 'game_over';
       return { ok: true, gameOver: true };
     }
@@ -533,6 +542,10 @@ class GameEngine {
       roundScores: this.phase === 'round_end' || this.phase === 'game_over' ? { ...this.roundScores } : null,
       cumulativeScores: { ...this.cumulativeScores },
       endGameRequests: [...this.endGameRequests],
+      endGameNeeded: this._endGameTally().needed,
+      waitingFor: this.phase === 'playing' && !this.pendingTrickWinner
+        ? (this.players.find(p => p.seat === this.currentPlayerSeat && !p.connected) || null)
+        : null,
       lastTrick: this.lastTrick,
       pendingTrickWinner: this.pendingTrickWinner ? {
         seat: this.pendingTrickWinner.seat,

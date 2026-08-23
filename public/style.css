@@ -115,6 +115,17 @@ td.negative{color:var(--red)}
 .trump-hearts,.trump-diamonds{color:var(--red)}
 .trump-spades,.trump-clubs{color:var(--text)}
 
+.seat-name.offline{opacity:.45;text-decoration:line-through}
+.seat.offline-seat{opacity:.6}
+
+#connection-banner{position:absolute;top:8px;left:50%;transform:translateX(-50%);max-width:min(92%,460px);
+  background:rgba(0,0,0,.62);border:1px solid rgba(255,255,255,.18);border-left:4px solid var(--text-dim);
+  border-radius:10px;padding:8px 14px;text-align:center;z-index:20;pointer-events:none}
+#connection-banner.stalled{border-left-color:var(--accent);background:rgba(0,0,0,.78)}
+#connection-banner strong{display:block;font-size:.85rem;color:var(--text)}
+#connection-banner.stalled strong{color:var(--accent)}
+#connection-banner span{display:block;font-size:.72rem;color:var(--text-dim);margin-top:2px;line-height:1.35}
+
 .last-trick-banner{position:absolute;bottom:8px;right:8px;font-size:.7rem;color:var(--text-dim);background:rgba(0,0,0,0.3);padding:4px 8px;border-radius:6px;cursor:pointer}
 .last-trick-banner:hover{background:rgba(0,0,0,0.5)}
 

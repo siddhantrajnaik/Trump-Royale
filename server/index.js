@@ -33,13 +33,24 @@ function broadcastState(roomCode) {
   }
 }
 
+const ROOM_GRACE_MS = 2 * 60 * 1000;
+
+function keepRoom(room) {
+  if (room && room.emptyTimer) { clearTimeout(room.emptyTimer); room.emptyTimer = null; }
+}
+
 function cleanupRoom(roomCode) {
   const room = rooms.get(roomCode);
   if (!room) return;
-  const hasConnected = room.engine.players.some(p => p.connected);
-  if (!hasConnected) {
-    rooms.delete(roomCode);
-  }
+  if (room.engine.players.some(p => p.connected)) return keepRoom(room);
+  if (room.emptyTimer) return;
+  // Hold the room open for a while: everyone can briefly drop at once on a
+  // flaky network or a server hiccup, and deleting immediately throws away a
+  // game that all five players are about to rejoin.
+  room.emptyTimer = setTimeout(() => {
+    const r = rooms.get(roomCode);
+    if (r && !r.engine.players.some(p => p.connected)) rooms.delete(roomCode);
+  }, ROOM_GRACE_MS);
 }
 
 io.on('connection', (socket) => {
@@ -81,29 +92,39 @@ io.on('connection', (socket) => {
 
     const engine = room.engine;
 
+    keepRoom(room);
+
     if (engine.phase !== 'lobby') {
-      const disconnected = engine.players.find(p => !p.connected);
-      if (disconnected) {
-        const oldId = disconnected.id;
-        const newId = `p_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-        engine.reconnectPlayer(oldId, newId);
-        disconnected.name = playerName;
+      // Match the empty seat by name. Taking the first disconnected seat
+      // regardless of who is asking hands a stranger somebody else's hand.
+      const wanted = String(playerName || '').trim().toLowerCase();
+      const seat = engine.players.find(p => !p.connected && p.name.trim().toLowerCase() === wanted);
 
-        delete room.socketMap[room.playerSockets[oldId]];
-        delete room.playerSockets[oldId];
-        room.socketMap[socket.id] = newId;
-        room.playerSockets[newId] = socket.id;
+      if (seat) {
+        // Keep the original player id. Hands, calls, tricks and scores are all
+        // keyed by it, so minting a new one silently orphaned every one of them.
+        const pid = seat.id;
+        engine.reconnectPlayer(pid, pid);
 
-        if (room.hostId === oldId) room.hostId = newId;
+        const staleSocket = room.playerSockets[pid];
+        if (staleSocket) delete room.socketMap[staleSocket];
+        room.socketMap[socket.id] = pid;
+        room.playerSockets[pid] = socket.id;
 
         currentRoom = code;
-        currentPlayerId = newId;
+        currentPlayerId = pid;
         socket.join(code);
-        ack?.({ ok: true, roomCode: code, playerId: newId });
+        ack?.({ ok: true, roomCode: code, playerId: pid });
         broadcastState(code);
         return;
       }
-      return ack?.({ error: 'Game in progress' });
+
+      const missing = engine.players.filter(p => !p.connected).map(p => p.name);
+      return ack?.({
+        error: missing.length
+          ? `Game in progress. To rejoin use your exact name: ${missing.join(', ')}`
+          : 'Game in progress',
+      });
     }
 
     if (engine.players.length >= engine.playerCount) return ack?.({ error: 'Room is full' });
@@ -204,6 +225,12 @@ io.on('connection', (socket) => {
     room.engine.removePlayer(currentPlayerId);
     delete room.socketMap[socket.id];
     delete room.playerSockets[currentPlayerId];
+    // Without this the host role stays with someone who has left and nobody
+    // can start the next round or end the game.
+    if (room.hostId === currentPlayerId) {
+      const heir = room.engine.players.find(p => p.connected);
+      if (heir) room.hostId = heir.id;
+    }
     broadcastState(currentRoom);
     cleanupRoom(currentRoom);
   });
