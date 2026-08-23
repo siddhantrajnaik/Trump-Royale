@@ -504,13 +504,21 @@ async function playCard(cardId) {
   if (res.error) alert(res.error);
 }
 
+// Trump is a property of the four real suits only. The Joker is suitless and
+// carries its own priority, so it must never render as a Trump card.
+function isTrumpCard(card) {
+  if (!card || card.rank === 'JOKER') return false;
+  if (card.isTrump !== undefined) return card.isTrump;
+  return !!state.trumpSuit && card.suit === state.trumpSuit;
+}
+
 function renderCardHTML(card) {
   if (card.rank === 'JOKER') {
     return `<div class="card card-front joker"><span class="rank">JOKER</span><span class="suit">🃏</span></div>`;
   }
   const sym = SUIT_SYMBOLS[card.suit];
   const isRed = RED_SUITS.has(card.suit);
-  const isTrump = card.suit === state.trumpSuit;
+  const isTrump = isTrumpCard(card);
   let cls = 'card card-front';
   if (isRed) cls += ' red';
   if (isTrump) cls += ' trump-card';

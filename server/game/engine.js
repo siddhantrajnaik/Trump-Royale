@@ -466,10 +466,23 @@ class GameEngine {
     return { ok: true };
   }
 
+  // The Joker is a suitless special card, never a Trump/Color card. Comparing
+  // suits alone is not enough: when the color card is itself the Joker there is
+  // no Trump suit, and `card.suit === this.trumpSuit` becomes null === null.
+  _classify(card) {
+    if (!card) return card;
+    const isJoker = card.rank === 'JOKER';
+    return {
+      ...card,
+      isJoker,
+      isTrump: !isJoker && this.trumpSuit !== null && card.suit === this.trumpSuit,
+    };
+  }
+
   getStateForPlayer(playerId) {
     const seat = this._seatOfPlayer(playerId);
     const hand = (this._getHand(playerId) || []).map(c => ({
-      ...c,
+      ...this._classify(c),
       isLegal: this.phase === 'playing' && this.currentPlayerSeat === seat
         ? !!this.getLegalCards(playerId).find(lc => lc.id === c.id)
         : false,
@@ -524,7 +537,7 @@ class GameEngine {
         entityId,
       },
       trumpSuit: this.trumpSuit,
-      colorCard: this.colorCard,
+      colorCard: this._classify(this.colorCard),
       dealerSeat: this.dealerSeat,
       colorPickerSeat: this.colorPickerSeat,
       callInfo,
@@ -533,7 +546,7 @@ class GameEngine {
       currentTrick: this.currentTrick.map(t => ({
         playerId: t.playerId,
         seat: t.seat,
-        card: t.card,
+        card: this._classify(t.card),
       })),
       trickNumber: this.trickNumber,
       leaderSeat: this.leaderSeat,
@@ -546,7 +559,10 @@ class GameEngine {
       waitingFor: this.phase === 'playing' && !this.pendingTrickWinner
         ? (this.players.find(p => p.seat === this.currentPlayerSeat && !p.connected) || null)
         : null,
-      lastTrick: this.lastTrick,
+      lastTrick: this.lastTrick ? {
+        ...this.lastTrick,
+        cards: this.lastTrick.cards.map(t => ({ ...t, card: this._classify(t.card) })),
+      } : null,
       pendingTrickWinner: this.pendingTrickWinner ? {
         seat: this.pendingTrickWinner.seat,
         playerId: this.pendingTrickWinner.playerId,
