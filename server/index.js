@@ -8,7 +8,17 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
-app.use(express.static(path.join(__dirname, '..', 'public')));
+app.use(express.static(path.join(__dirname, '..', 'public'), {
+  setHeaders(res, filePath) {
+    // The worker and the entry point decide what everyone else runs, so they
+    // must never be served from a stale HTTP cache.
+    if (/(sw\.js|index\.html|manifest\.webmanifest)$/.test(filePath)) {
+      res.setHeader('Cache-Control', 'no-cache');
+    } else if (/[\\/]icons[\\/]/.test(filePath)) {
+      res.setHeader('Cache-Control', 'public, max-age=604800');
+    }
+  },
+}));
 
 const rooms = new Map();
 

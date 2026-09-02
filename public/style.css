@@ -43,7 +43,7 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,sans-seri
 #screen-game{display:none;flex-direction:column;align-items:stretch;width:100%;min-width:0;height:100%;overflow:hidden}
 #screen-game.active{display:flex}
 
-#game-header{display:flex;align-items:center;justify-content:center;gap:16px;padding:8px 16px;background:rgba(0,0,0,0.25);z-index:10;flex-shrink:0}
+#game-header{display:flex;align-items:center;justify-content:center;gap:16px;padding:calc(8px + env(safe-area-inset-top, 0px)) 16px 8px;background:rgba(0,0,0,0.25);z-index:10;flex-shrink:0}
 #trump-display{font-size:1.1rem;font-weight:600}
 #round-display{font-size:.85rem;color:var(--text-dim)}
 #score-toggle-btn,#sound-toggle-btn{cursor:pointer;font-size:1.2rem;padding:4px 8px;border-radius:6px;user-select:none}
@@ -91,7 +91,7 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,sans-seri
 #your-info span{display:inline-flex;align-items:center;gap:4px}
 #your-info .val{color:var(--accent);font-weight:600}
 
-#hand-area{padding:8px 16px 12px;background:rgba(0,0,0,0.3);display:flex;justify-content:center;flex-shrink:0;width:100%;min-width:0;max-width:100%;overflow-x:auto;z-index:10}
+#hand-area{padding:8px 16px calc(12px + env(safe-area-inset-bottom, 0px));background:rgba(0,0,0,0.3);display:flex;justify-content:center;flex-shrink:0;width:100%;min-width:0;max-width:100%;overflow-x:auto;z-index:10}
 #hand{display:flex;justify-content:center;padding:20px 0 4px;min-height:calc(var(--card-h) + 24px)}
 #hand .card{cursor:pointer;transition:transform .12s,box-shadow .12s;margin-left:calc(-1 * var(--hand-overlap, 12px))}
 #hand .card:first-child{margin-left:0}
@@ -155,4 +155,5 @@ td.negative{color:var(--red)}
   #hand .card{width:48px;height:70px}
   #hand .card .corner{font-size:.72rem}
   #hand-area{padding-left:8px;padding-right:8px}
+  #hand .card .cr{font-size:.68rem}
 }

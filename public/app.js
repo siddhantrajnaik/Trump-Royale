@@ -125,6 +125,54 @@ $('#btn-back-home').addEventListener('click', () => {
   showScreen('screen-menu');
 });
 
+// --- Install / service worker ---
+// The worker exists for the cold-start shell, not for offline play: a
+// multiplayer game is useless without the server either way.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
+
+let deferredInstall = null;
+const installBtn = $('#btn-install');
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  // Chrome and Edge let us defer this and offer it in our own UI.
+  e.preventDefault();
+  deferredInstall = e;
+  if (installBtn) installBtn.style.display = 'block';
+});
+
+if (installBtn) {
+  installBtn.addEventListener('click', async () => {
+    if (!deferredInstall) return;
+    installBtn.disabled = true;
+    deferredInstall.prompt();
+    await deferredInstall.userChoice.catch(() => {});
+    deferredInstall = null;
+    installBtn.style.display = 'none';
+    installBtn.disabled = false;
+  });
+}
+
+window.addEventListener('appinstalled', () => {
+  deferredInstall = null;
+  if (installBtn) installBtn.style.display = 'none';
+});
+
+// iOS never fires beforeinstallprompt, so Safari users get instructions instead.
+(function iosInstallHint() {
+  const hint = $('#ios-install-hint');
+  if (!hint) return;
+  const ua = navigator.userAgent;
+  const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isSafari = /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua);
+  const installed = window.navigator.standalone === true
+    || window.matchMedia('(display-mode: standalone)').matches;
+  if (isIOS && isSafari && !installed) hint.style.display = 'block';
+})();
+
 // --- Rejoin ---
 // A dropped player keeps their seat as long as somebody is still in the room,
 // but they can only get back in with the room code, which is exactly what gets

@@ -2,9 +2,19 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Trump Card Royal</title>
+  <meta name="description" content="Real-time multiplayer trick-taking card game for 4, 5 or 6 players.">
+  <meta name="theme-color" content="#064d24">
+  <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🃏</text></svg>">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+  <!-- iOS has no manifest support: it needs its own icon and meta tags. -->
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Trump Royal">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -22,6 +32,8 @@
         <input type="text" id="input-code" placeholder="Room Code" maxlength="4" autocomplete="off" style="text-transform:uppercase">
         <button id="btn-join" class="btn">Join Room</button>
         <p id="menu-error" class="error"></p>
+        <button id="btn-install" class="btn" style="display:none">Install app</button>
+        <p id="ios-install-hint" class="subtle" style="display:none">To install: tap Share, then "Add to Home Screen".</p>
       </div>
     </div>
 
