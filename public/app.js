@@ -312,7 +312,8 @@ function renderYourInfo() {
   if (me?.isColorPicker) parts.push('<span>Color Picker</span>');
   if (call !== null) parts.push(`<span>Call: <span class="val">${call}</span></span>`);
   if (state.phase === 'playing') parts.push(`<span>Tricks: <span class="val">${tricks}</span></span>`);
-  if (isMyTurn) parts.push('<span class="val">YOUR TURN</span>');
+  if (isMyTurn && selectedCardId) parts.push('<span class="val">Tap again to play</span>');
+  else if (isMyTurn) parts.push('<span class="val">YOUR TURN</span>');
   bar.innerHTML = parts.join('');
 }
 
@@ -324,11 +325,14 @@ function renderHeader() {
   } else {
     $('#trump-display').textContent = '';
   }
-  let roundText = `Round ${state.roundNumber} · Trick ${state.trickNumber || '-'}/${state.maxTricks}`;
+  const compact = window.innerWidth < 600;
+  let roundText = compact
+    ? `R${state.roundNumber} · ${state.trickNumber || '-'}/${state.maxTricks}`
+    : `Round ${state.roundNumber} · Trick ${state.trickNumber || '-'}/${state.maxTricks}`;
   if (state.colorCard) {
     const cc = state.colorCard;
     const ccSym = cc.rank === 'JOKER' ? '🃏' : cc.rank + SUIT_SYMBOLS[cc.suit];
-    roundText += ` · Color card: ${ccSym}`;
+    roundText += compact ? ` · ${ccSym}` : ` · Color card: ${ccSym}`;
   }
   $('#round-display').textContent = roundText;
 }
@@ -355,6 +359,8 @@ function renderSeats() {
   const mySeat = state.you.seat;
   const positions = seatPositions(state.playerCount, mySeat);
 
+  const narrow = window.innerWidth < 600;
+
   for (const pos of positions) {
     if (pos.seat === mySeat) continue;
     const p = state.players.find(pl => pl.seat === pos.seat);
@@ -362,7 +368,9 @@ function renderSeats() {
 
     const div = document.createElement('div');
     div.className = 'seat';
-    div.style.left = pos.x + '%';
+    // Seats are centred on their point, so an 8% seat hangs half off a 375px
+    // screen. Keep the whole block on screen instead.
+    div.style.left = (narrow ? Math.min(82, Math.max(18, pos.x)) : pos.x) + '%';
     div.style.top = pos.y + '%';
 
     let nameClass = 'seat-name';
@@ -475,12 +483,50 @@ function renderConnectionBanner() {
   el.appendChild(sub);
 }
 
+// A pointer that can hover reveals a card before it is clicked. Touch cannot,
+// so on those devices the first tap stands in for the hover and the second
+// commits - otherwise a tap on a heavily overlapped card is a guess, and a
+// misplay cannot be taken back.
+const CAN_HOVER = window.matchMedia('(hover: hover)').matches;
+let selectedCardId = null;
+
+// Never let the hand scroll: overlap the cards just enough to fit the width,
+// leaving each one's corner index showing.
+const MIN_CARD_SLIVER = 20;
+
+function fitHand() {
+  const area = $('#hand-area');
+  const container = $('#hand');
+  if (!area || !container) return;
+  const count = container.children.length;
+  if (!count) return;
+
+  const cardW = container.firstElementChild.offsetWidth;
+  if (!cardW) return;
+  const pad = getComputedStyle(area);
+  const box = Math.min(area.clientWidth, document.documentElement.clientWidth);
+  const avail = box - parseFloat(pad.paddingLeft || 0) - parseFloat(pad.paddingRight || 0);
+
+  let overlap = 12; // the roomy default, matching the original fan
+  if (count > 1) {
+    const required = Math.ceil((count * cardW - avail) / (count - 1));
+    overlap = Math.max(overlap, required);
+    overlap = Math.min(overlap, Math.max(0, cardW - MIN_CARD_SLIVER));
+  }
+  container.style.setProperty('--hand-overlap', overlap + 'px');
+}
+
 function renderHand() {
   const container = $('#hand');
   container.innerHTML = '';
 
   const hand = state.you.hand || [];
   const isMyTurn = state.phase === 'playing' && state.currentPlayerSeat === state.you.seat;
+
+  // Drop a stale selection if that card is gone or is no longer playable.
+  if (selectedCardId && !(isMyTurn && hand.some(c => c.id === selectedCardId && c.isLegal))) {
+    selectedCardId = null;
+  }
 
   for (const card of hand) {
     const el = document.createElement('div');
@@ -492,12 +538,41 @@ function renderHand() {
     }
 
     if (isMyTurn && card.isLegal) {
-      cardEl.addEventListener('click', () => playCard(card.id));
+      if (CAN_HOVER) {
+        cardEl.addEventListener('click', () => playCard(card.id));
+      } else {
+        if (card.id === selectedCardId) cardEl.classList.add('selected');
+        cardEl.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          if (selectedCardId === card.id) {
+            selectedCardId = null;
+            playCard(card.id);
+          } else {
+            selectedCardId = card.id;
+            renderHand();
+            renderYourInfo();
+          }
+        });
+      }
     }
 
     container.appendChild(cardEl);
   }
+
+  fitHand();
 }
+
+// Tapping away from the hand cancels a pending selection.
+if (!CAN_HOVER) {
+  document.addEventListener('click', () => {
+    if (!selectedCardId) return;
+    selectedCardId = null;
+    if (state) { renderHand(); renderYourInfo(); }
+  });
+}
+
+window.addEventListener('resize', () => { fitHand(); if (state) render(); });
+window.addEventListener('orientationchange', () => setTimeout(fitHand, 150));
 
 async function playCard(cardId) {
   const res = await emit('play-card', { cardId });
@@ -514,7 +589,7 @@ function isTrumpCard(card) {
 
 function renderCardHTML(card) {
   if (card.rank === 'JOKER') {
-    return `<div class="card card-front joker"><span class="rank">JOKER</span><span class="suit">🃏</span></div>`;
+    return `<div class="card card-front joker"><span class="corner"><span class="cr">J</span><span class="cs">🃏</span></span><span class="rank">JOKER</span><span class="suit">🃏</span></div>`;
   }
   const sym = SUIT_SYMBOLS[card.suit];
   const isRed = RED_SUITS.has(card.suit);
@@ -522,7 +597,7 @@ function renderCardHTML(card) {
   let cls = 'card card-front';
   if (isRed) cls += ' red';
   if (isTrump) cls += ' trump-card';
-  return `<div class="${cls}"><span class="rank">${card.rank}</span><span class="suit">${sym}</span></div>`;
+  return `<div class="${cls}"><span class="corner"><span class="cr">${card.rank}</span><span class="cs">${sym}</span></span><span class="rank">${card.rank}</span><span class="suit">${sym}</span></div>`;
 }
 
 function renderCallOverlay() {
