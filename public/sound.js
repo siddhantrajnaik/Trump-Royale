@@ -14,18 +14,26 @@ const Sound = (() => {
       master.gain.value = 0.3;
       master.connect(ctx.destination);
     }
-    if (ctx.state === 'suspended') ctx.resume();
+    // resume() can reject when called without user activation; that is fine,
+    // the next gesture tries again.
+    if (ctx.state !== 'running') { try { ctx.resume(); } catch (e) { /* retried later */ } }
     return ctx;
   }
 
-  // Browsers keep audio suspended until the user interacts with the page.
+  // Browsers keep audio suspended until the user interacts with the page. A
+  // single attempt is not enough: the context can be created suspended by a cue
+  // that fires before anyone has touched the screen, and one resume() that does
+  // not take would then leave the whole session silent. So keep listening until
+  // the context is genuinely running, and listen in the capture phase so a
+  // handler calling stopPropagation cannot swallow the gesture.
+  const GESTURES = ['pointerdown', 'touchend', 'keydown'];
   function unlock() {
-    ensure();
-    window.removeEventListener('pointerdown', unlock);
-    window.removeEventListener('keydown', unlock);
+    const c = ensure();
+    if (c && c.state === 'running') {
+      for (const g of GESTURES) window.removeEventListener(g, unlock, true);
+    }
   }
-  window.addEventListener('pointerdown', unlock);
-  window.addEventListener('keydown', unlock);
+  for (const g of GESTURES) window.addEventListener(g, unlock, true);
 
   function tone({ freq, to, type = 'sine', dur = 0.2, delay = 0, gain = 0.3 }) {
     const c = enabled ? ensure() : null;
@@ -72,6 +80,13 @@ const Sound = (() => {
 
   return {
     isEnabled: () => enabled,
+    // Diagnostic: tells apart "muted by the user" from "the browser has not
+    // unlocked audio yet".
+    state: () => ({
+      enabled,
+      context: ctx ? ctx.state : 'not-created',
+      stored: localStorage.getItem('tcr_sound'),
+    }),
     toggle() {
       enabled = !enabled;
       localStorage.setItem('tcr_sound', enabled ? 'on' : 'off');

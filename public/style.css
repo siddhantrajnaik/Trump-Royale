@@ -46,7 +46,11 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,sans-seri
 #game-header{display:flex;align-items:center;justify-content:center;gap:16px;padding:calc(8px + env(safe-area-inset-top, 0px)) 16px 8px;background:rgba(0,0,0,0.25);z-index:10;flex-shrink:0}
 #trump-display{font-size:1.1rem;font-weight:600}
 #round-display{font-size:.85rem;color:var(--text-dim)}
-#score-toggle-btn,#sound-toggle-btn{cursor:pointer;font-size:1.2rem;padding:4px 8px;border-radius:6px;user-select:none}
+#score-toggle-btn,#sound-toggle-btn{cursor:pointer;font-size:1.2rem;padding:6px 10px;border-radius:8px;user-select:none;
+  min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center}
+/* Muted is a sticky, easily mistapped state, so say so rather than relying on
+   the reader spotting a different emoji. */
+#sound-toggle-btn.muted{opacity:.55;background:rgba(231,76,60,.18);box-shadow:inset 0 0 0 1px rgba(231,76,60,.5)}
 #score-toggle-btn:hover,#sound-toggle-btn:hover{background:rgba(255,255,255,0.1)}
 
 #table{flex:1;width:100%;position:relative;overflow:hidden;background:radial-gradient(ellipse at center,var(--felt) 0%,var(--felt-dark) 100%)}
@@ -143,7 +147,7 @@ td.negative{color:var(--red)}
   .menu-box{min-width:280px;padding:20px}
   .seat-name{font-size:.7rem;padding:3px 7px;max-width:88px}
   .seat-cards,.seat-call,.seat-tricks{font-size:.62rem;white-space:nowrap}
-  #game-header{padding:6px 8px;gap:8px;font-size:.85rem;flex-wrap:nowrap;overflow:hidden}
+  #game-header{padding:6px 8px;gap:14px;font-size:.85rem;flex-wrap:nowrap;overflow:hidden}
   #trump-display{font-size:.95rem;white-space:nowrap}
   #round-display{font-size:.7rem;white-space:nowrap}
   .overlay-box{min-width:260px;padding:20px}

@@ -239,7 +239,10 @@ refreshRejoin();
 // --- Sound ---
 const soundBtn = $('#sound-toggle-btn');
 function refreshSoundBtn() {
-  soundBtn.textContent = Sound.isEnabled() ? '🔊' : '🔇';
+  const on = Sound.isEnabled();
+  soundBtn.textContent = on ? '🔊' : '🔇';
+  soundBtn.classList.toggle('muted', !on);
+  soundBtn.title = on ? 'Sound on - tap to mute' : 'Sound is OFF - tap to turn it back on';
 }
 soundBtn.addEventListener('click', () => {
   Sound.toggle();
