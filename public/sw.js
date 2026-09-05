@@ -9,7 +9,7 @@
 // Every strategy below is network-first so a deploy is picked up on the next
 // load. A cache-first shell would strand players on old code, which is exactly
 // the failure this is meant to avoid.
-const VERSION = 'tcr-v1';
+const VERSION = 'tcr-v2';
 const NET_TIMEOUT_MS = 2500;
 
 const SHELL = [
@@ -18,6 +18,7 @@ const SHELL = [
   '/style.css',
   '/app.js',
   '/sound.js',
+  '/music.js',
   '/manifest.webmanifest',
   '/socket.io/socket.io.js',
   '/icons/icon-192.png',

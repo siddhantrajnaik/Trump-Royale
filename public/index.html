@@ -71,6 +71,7 @@
       <div id="game-header">
         <div id="trump-display"></div>
         <div id="round-display"></div>
+        <div id="music-toggle-btn" title="Shared music">🎵</div>
         <div id="sound-toggle-btn" title="Sound on/off">🔊</div>
         <div id="score-toggle-btn" title="Scoreboard">📊</div>
       </div>
@@ -80,6 +81,19 @@
         <div id="trick-area"></div>
         <div id="trick-info"></div>
         <div id="connection-banner" style="display:none"></div>
+
+        <!-- Shared YouTube player. Desktop only; music.js hides it elsewhere. -->
+        <div id="music-card" style="display:none">
+          <div id="yt-player-wrap"><div id="yt-player"></div>
+            <button id="music-join" type="button">▶ Join the music</button>
+          </div>
+          <div id="music-controls">
+            <button id="music-playpause" class="mini" type="button" title="Play / pause for everyone">▶</button>
+            <button id="music-resync" class="mini" type="button" title="Re-sync me to everyone else">⟳</button>
+            <input id="music-volume" type="range" min="0" max="100" step="1" title="My volume">
+          </div>
+          <div id="music-note"></div>
+        </div>
       </div>
 
       <div id="call-overlay" class="overlay" style="display:none">
@@ -105,6 +119,18 @@
       <div id="your-info"></div>
       <div id="hand-area">
         <div id="hand"></div>
+      </div>
+
+      <div id="music-overlay" class="overlay" style="display:none">
+        <div class="overlay-box">
+          <h2>Shared music</h2>
+          <p class="subtle" style="margin-top:0">Paste a YouTube link. Everyone in the room hears the same track, kept in step.</p>
+          <input type="text" id="music-url" placeholder="https://youtube.com/watch?v=..." autocomplete="off">
+          <p id="music-error" class="error"></p>
+          <button id="music-set" class="btn primary">Play for everyone</button>
+          <button id="music-stop" class="btn">Stop the music</button>
+          <button id="music-close" class="btn">Close</button>
+        </div>
       </div>
 
       <div id="scoreboard" style="display:none">
@@ -136,5 +162,6 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="/sound.js"></script>
   <script src="/app.js"></script>
+  <script src="/music.js"></script>
 </body>
 </html>

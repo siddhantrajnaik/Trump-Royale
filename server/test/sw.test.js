@@ -174,7 +174,7 @@ test('sw: falls back to cache when the server is unreachable', async () => {
   const warm = [...online.store.values()][0];
 
   const offline = bootWorker({ offline: true });
-  offline.store.set('tcr-v1', relabel(warm));
+  offline.store.set('tcr-v2', relabel(warm));
   const res = await dispatchFetch(offline, '/app.js');
   assert.ok(res, 'something was served');
   assert.ok(String(res.body).startsWith('CACHED:'), 'it came from the cache, not a 503');
@@ -188,7 +188,7 @@ test('sw: a sleeping server does not block the shell', async () => {
   const warm = [...online.store.values()][0];
 
   const slow = bootWorker({ slow: 400 });      // network far slower than the 30ms race
-  slow.store.set('tcr-v1', relabel(warm));
+  slow.store.set('tcr-v2', relabel(warm));
   const started = Date.now();
   const res = await dispatchFetch(slow, '/index.html');
   const elapsed = Date.now() - started;
@@ -206,5 +206,5 @@ test('sw: activate drops caches from previous versions', async () => {
   await w.listeners.activate({ waitUntil: (p) => { done = p; } });
   await done;
   assert.ok(!w.store.has('tcr-OLD'), 'the stale cache was deleted');
-  assert.ok(w.store.has('tcr-v1'), 'the current cache survives');
+  assert.ok(w.store.has('tcr-v2'), 'the current cache survives');
 });

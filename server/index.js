@@ -3,6 +3,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
 const { GameEngine } = require('./game/engine');
+const Music = require('./music');
 
 const app = express();
 const server = http.createServer(app);
@@ -39,6 +40,7 @@ function broadcastState(roomCode) {
     const state = room.engine.getStateForPlayer(playerId);
     state.roomCode = roomCode;
     state.hostId = room.hostId;
+    state.music = Music.payload(room, Date.now());
     io.to(socketId).emit('game-state', state);
   }
 }
@@ -84,6 +86,7 @@ io.on('connection', (socket) => {
       hostId: playerId,
       socketMap: { [socket.id]: playerId },
       playerSockets: { [playerId]: socket.id },
+      music: Music.emptyMusic(),
     };
     rooms.set(code, room);
 
@@ -224,6 +227,29 @@ io.on('connection', (socket) => {
     const room = rooms.get(currentRoom);
     if (!room) return ack?.({ error: 'No room' });
     room.engine.cancelEndGame(currentPlayerId);
+    ack?.({ ok: true });
+    broadcastState(currentRoom);
+  });
+
+  // Shared music. The server holds the playback clock so every client can work
+  // out the same position; nobody's player is authoritative.
+  socket.on('music-time', (_, ack) => ack?.({ serverNow: Date.now() }));
+
+  socket.on('music-set', ({ url }, ack) => {
+    const room = rooms.get(currentRoom);
+    if (!room) return ack?.({ error: 'No room' });
+    const videoId = Music.parseVideoId(url);
+    if (!videoId) return ack?.({ error: 'That does not look like a YouTube link' });
+    Music.setTrack(room, videoId, currentPlayerId, Date.now());
+    ack?.({ ok: true, videoId });
+    broadcastState(currentRoom);
+  });
+
+  socket.on('music-control', ({ action, seconds }, ack) => {
+    const room = rooms.get(currentRoom);
+    if (!room) return ack?.({ error: 'No room' });
+    const next = Music.control(room, action, seconds, Date.now());
+    if (!next) return ack?.({ error: 'Nothing playing' });
     ack?.({ ok: true });
     broadcastState(currentRoom);
   });

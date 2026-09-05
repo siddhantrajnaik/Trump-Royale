@@ -298,6 +298,7 @@ socket.on('game-state', (s) => {
   state = s;
   render();
   playTransitionSounds(prev, s);
+  if (typeof Music !== 'undefined') Music.onState(s.music);
 });
 
 function render() {

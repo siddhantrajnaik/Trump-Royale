@@ -137,6 +137,28 @@ td.negative{color:var(--red)}
 #connection-banner.stalled strong{color:var(--accent)}
 #connection-banner span{display:block;font-size:.72rem;color:var(--text-dim);margin-top:2px;line-height:1.35}
 
+#music-toggle-btn{cursor:pointer;font-size:1.2rem;padding:6px 10px;border-radius:8px;user-select:none;
+  min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center}
+#music-toggle-btn:hover{background:rgba(255,255,255,0.1)}
+
+#music-card{position:absolute;top:10px;left:10px;width:220px;background:rgba(0,0,0,.55);
+  border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:6px;z-index:15}
+#yt-player-wrap{position:relative;width:208px;height:117px;border-radius:6px;overflow:hidden;background:#000}
+#yt-player,#yt-player iframe{width:100%;height:100%;border:0;display:block}
+/* Audio cannot start on its own, so each player opts in once. */
+#music-join{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.72);color:var(--accent);border:0;font-size:.85rem;font-weight:700;
+  cursor:pointer;z-index:2}
+#music-join:hover{background:rgba(0,0,0,.82)}
+#music-controls{display:flex;align-items:center;gap:6px;margin-top:6px}
+#music-controls .mini{width:30px;height:28px;padding:0;margin:0;flex:0 0 auto;border-radius:6px;
+  background:rgba(255,255,255,.12);color:var(--text);border:0;cursor:pointer;font-size:.85rem}
+#music-controls .mini:hover{background:rgba(255,255,255,.22)}
+#music-volume{flex:1;min-width:0;accent-color:var(--accent)}
+#music-note{font-size:.65rem;color:var(--text-dim);min-height:1em;margin-top:2px;text-align:center}
+
+@media(max-width:820px){ #music-card,#music-toggle-btn{display:none!important} }
+
 .last-trick-banner{position:absolute;bottom:8px;right:8px;font-size:.7rem;color:var(--text-dim);background:rgba(0,0,0,0.3);padding:4px 8px;border-radius:6px;cursor:pointer}
 .last-trick-banner:hover{background:rgba(0,0,0,0.5)}
 
