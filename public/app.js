@@ -49,6 +49,7 @@ $('#btn-back-menu').addEventListener('click', () => showScreen('screen-menu'));
 // --- Create Room ---
 let selectedPC = 4;
 let selectedMode = '2v2';
+let selectedMusic = localStorage.getItem('tcr_music_room') !== 'off';
 
 $$('[data-pc]').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -72,6 +73,20 @@ $$('[data-pc]').forEach(btn => {
   });
 });
 
+$$('[data-music]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    $$('[data-music]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedMusic = btn.dataset.music === 'on';
+    localStorage.setItem('tcr_music_room', selectedMusic ? 'on' : 'off');
+  });
+});
+
+// The toggle starts on whatever was chosen last time.
+$$('[data-music]').forEach(b => {
+  b.classList.toggle('active', (b.dataset.music === 'on') === selectedMusic);
+});
+
 $$('[data-mode]').forEach(btn => {
   btn.addEventListener('click', () => {
     $$('[data-mode]').forEach(b => b.classList.remove('active'));
@@ -82,7 +97,7 @@ $$('[data-mode]').forEach(btn => {
 
 $('#btn-confirm-create').addEventListener('click', async () => {
   const name = $('#input-name').value.trim();
-  const res = await emit('create-room', { playerName: name, gameMode: selectedMode, playerCount: selectedPC });
+  const res = await emit('create-room', { playerName: name, gameMode: selectedMode, playerCount: selectedPC, musicEnabled: selectedMusic });
   if (res.error) { alert(res.error); return; }
   myPlayerId = res.playerId;
   localStorage.setItem('tcr_pid', myPlayerId);
@@ -320,7 +335,8 @@ function render() {
 function renderLobby() {
   $('#lobby-code').textContent = state.roomCode;
   const modeNames = { '2v2': '2v2 Teams', 'ffa': 'Free-for-All', '3v3': '3v3 Teams' };
-  $('#lobby-info').textContent = `${state.playerCount} Players · ${modeNames[state.gameMode]}`;
+  const musicNote = state.music && state.music.enabled === false ? ' · No music' : '';
+  $('#lobby-info').textContent = `${state.playerCount} Players · ${modeNames[state.gameMode]}${musicNote}`;
 
   const ul = $('#lobby-players');
   ul.innerHTML = '';

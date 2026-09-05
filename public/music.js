@@ -181,6 +181,15 @@ const Music = (() => {
 
   function onState(music) {
     if (!IS_DESKTOP) return;
+    const openBtn = $m('music-toggle-btn');
+    if (music && music.enabled === false) {
+      // The host turned it off for this room: leave no trace of it.
+      current = null;
+      if (openBtn) openBtn.style.display = 'none';
+      apply();
+      return;
+    }
+    if (openBtn) openBtn.style.display = '';
     current = music || null;
     apply();
   }

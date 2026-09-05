@@ -97,7 +97,7 @@ function control(room, action, seconds, now) {
 // so it rides along with the state.
 function payload(room, now) {
   const m = room.music || emptyMusic();
-  return { ...m, serverNow: now };
+  return { ...m, serverNow: now, enabled: room.musicEnabled !== false };
 }
 
 module.exports = { parseVideoId, emptyMusic, positionAt, setTrack, control, payload };

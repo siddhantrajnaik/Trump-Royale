@@ -69,7 +69,7 @@ io.on('connection', (socket) => {
   let currentRoom = null;
   let currentPlayerId = null;
 
-  socket.on('create-room', ({ playerName, gameMode, playerCount }, ack) => {
+  socket.on('create-room', ({ playerName, gameMode, playerCount, musicEnabled }, ack) => {
     playerCount = parseInt(playerCount);
     if (![4, 5, 6].includes(playerCount)) return ack?.({ error: 'Player count must be 4, 5 or 6' });
     if (playerCount === 6 && gameMode !== '3v3') gameMode = '3v3';
@@ -87,6 +87,9 @@ io.on('connection', (socket) => {
       socketMap: { [socket.id]: playerId },
       playerSockets: { [playerId]: socket.id },
       music: Music.emptyMusic(),
+      // Off is a deliberate choice by the host, so only an explicit false
+      // disables it; anything else (including an older client) leaves it on.
+      musicEnabled: musicEnabled !== false,
     };
     rooms.set(code, room);
 
@@ -238,6 +241,7 @@ io.on('connection', (socket) => {
   socket.on('music-set', ({ url }, ack) => {
     const room = rooms.get(currentRoom);
     if (!room) return ack?.({ error: 'No room' });
+    if (room.musicEnabled === false) return ack?.({ error: 'Music is off for this room' });
     const videoId = Music.parseVideoId(url);
     if (!videoId) return ack?.({ error: 'That does not look like a YouTube link' });
     Music.setTrack(room, videoId, currentPlayerId, Date.now());
@@ -248,6 +252,7 @@ io.on('connection', (socket) => {
   socket.on('music-control', ({ action, seconds }, ack) => {
     const room = rooms.get(currentRoom);
     if (!room) return ack?.({ error: 'No room' });
+    if (room.musicEnabled === false) return ack?.({ error: 'Music is off for this room' });
     const next = Music.control(room, action, seconds, Date.now());
     if (!next) return ack?.({ error: 'Nothing playing' });
     ack?.({ ok: true });

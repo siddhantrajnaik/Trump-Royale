@@ -134,3 +134,15 @@ test('music: a late joiner is told where the track already is', () => {
   assert.strictEqual(state.videoId, 'dQw4w9WgXcQ');
   assert.ok(typeof state.serverNow === 'number', 'the server clock rides along');
 });
+
+test('music: the room flag rides along with the state', () => {
+  const on = { music: Music.emptyMusic(), musicEnabled: true };
+  const off = { music: Music.emptyMusic(), musicEnabled: false };
+  const legacy = { music: Music.emptyMusic() };            // flag never set
+
+  assert.strictEqual(Music.payload(on, 1000).enabled, true, 'on');
+  assert.strictEqual(Music.payload(off, 1000).enabled, false, 'off');
+  // Only an explicit false disables it, so a room made before the setting
+  // existed still behaves as it did.
+  assert.strictEqual(Music.payload(legacy, 1000).enabled, true, 'absent means on');
+});
