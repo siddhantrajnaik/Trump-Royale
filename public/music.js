@@ -94,7 +94,13 @@ const Music = (() => {
         modestbranding: 1, playsinline: 1, rel: 0,
       },
       events: {
-        onReady: () => { player.setVolume(volume); render(); sync(); },
+        // Take the player from the event: the assignment below has not
+        // happened yet if onReady fires during construction.
+        onReady: (e) => {
+          player = player || (e && e.target);
+          if (player && player.setVolume) player.setVolume(volume);
+          render(); sync();
+        },
         onStateChange: () => { lastNudge = Date.now(); render(); },
         onError: () => {
           const note = $m('music-note');
