@@ -16,5 +16,10 @@
   },
   "devDependencies": {
     "jsdom": "^29.1.1"
+  },
+  "description": "Real-time multiplayer trick-taking card game for 4, 5 or 6 players.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/siddhantrajnaik/Trump-Royale.git"
   }
 }
