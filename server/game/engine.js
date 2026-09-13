@@ -1,3 +1,5 @@
+const { randomInt } = require('node:crypto');
+
 const SUITS = ['spades', 'hearts', 'diamonds', 'clubs'];
 const RANKS = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2'];
 const RANK_VALUES = { A: 14, K: 13, Q: 12, J: 11, '10': 10, '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2 };
@@ -44,9 +46,17 @@ function buildDeck(playerCount) {
   return cards;
 }
 
+// Fisher-Yates. The descending loop with j drawn from [0, i] is the unbiased
+// form; the common variant that draws j across the whole array is not.
+//
+// randomInt rather than Math.random for two reasons: it rejection-samples, so
+// there is no modulo bias at all, and it draws from the OS entropy pool, so a
+// deal cannot be predicted by watching earlier ones. Math.random is a 128-bit
+// PRNG - statistically even, but its whole future is recoverable from enough
+// output, which is not a property you want in a card game.
 function shuffle(arr) {
   for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = randomInt(i + 1);
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
   return arr;
@@ -181,15 +191,21 @@ class GameEngine {
       this.roundScores[eid] = 0;
     }
 
-    let deck = shuffle(buildDeck(this.playerCount));
+    // The colour card names the trump suit, so it cannot be the suitless Joker:
+    // turning it over would leave the round with no trump at all, about one
+    // round in fifty.
+    //
+    // Reshuffle rather than skipping past it. Skipping leaves the Joker stranded
+    // on top of the deck, and since the colour picker is dealt first they then
+    // received it 1/52 of the time on top of their fair share - a measurable
+    // edge. Reshuffling is rejection sampling, so the deal stays exactly uniform
+    // across every deal whose colour card is a suited card.
+    let deck;
+    do {
+      deck = shuffle(buildDeck(this.playerCount));
+    } while (deck[0].rank === 'JOKER');
 
-    // The colour card names the trump suit, so it cannot be the suitless Joker.
-    // Turning it over used to leave the whole round with no trump at all, about
-    // one round in fifty. Take the first suited card from the top instead;
-    // anything skipped stays where it is, so the Joker is still dealt, the deck
-    // still divides exactly, and the colour card still lands with the dealer.
-    const colorIdx = deck.findIndex(c => c.rank !== 'JOKER');
-    const colorCard = deck.splice(colorIdx, 1)[0];
+    const colorCard = deck.shift();
     this.colorCard = colorCard;
     this.trumpSuit = colorCard.suit;
     deck.push(colorCard);

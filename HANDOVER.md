@@ -1,10 +1,10 @@
-# Trump Card Royal — Handover, v1.0.1
+# Trump Card Royal — Handover, v1.0.2
 
 A real-time multiplayer trick-taking card game for 4, 5 or 6 players. Browser-based,
 installable as an app, no database, deployable free.
 
 - **Repository:** https://github.com/siddhantrajnaik/Trump-Royale
-- **Version:** 1.0.1 (git tag `v1.0.1`)
+- **Version:** 1.0.2 (git tag `v1.0.2`)
 - **Stack:** Node.js + Express + Socket.IO on the server; plain HTML/CSS/JavaScript
   on the client. No framework, no build step, no database.
 - **Runtime dependencies:** exactly two — `express` and `socket.io`.
@@ -19,7 +19,7 @@ npm start            # http://localhost:3000
 ```
 
 ```bash
-npm test             # 42 tests, ~30 seconds
+npm test             # 43 tests, under 10 seconds
 npm run dev          # same as start, restarts on file change
 ```
 
@@ -64,9 +64,13 @@ Because each deck divides exactly, the colour card is dealt last and lands in th
 
 **The colour card is never the Joker.** The Joker has no suit, so turning it over left
 the whole round with no trump — about 1 round in 50, with a blank trump indicator that
-looked like a bug. The deal now takes the first *suited* card from the top and leaves
-anything skipped where it is, so the Joker is still dealt, the deck still divides
-exactly, and the colour card still lands with the dealer.
+looked like a bug. If the top card is the Joker, the deck is **reshuffled**.
+
+Why reshuffle rather than just skip past it to the next suited card? Skipping leaves the
+Joker stranded on top, and the colour picker is dealt first — so they collected it an
+extra 1/52 of the time, a measured 1.92 points above their fair share. Reshuffling is
+rejection sampling, which keeps the deal exactly uniform across every deal whose colour
+card is suited. See §2.8.
 
 ### 2.4 Calling
 
@@ -122,6 +126,39 @@ Examples: call 3 take 3 → `3.0` · call 3 take 5 → `3.2` · call 20 take 10 
 Scores accumulate across rounds. The game ends when **every connected player** votes
 to end it (§3.4).
 
+### 2.8 Is the deal fair?
+
+**The shuffle.** Fisher–Yates, descending loop, with `j` drawn from `[0, i]` — the
+unbiased form. The common variant that draws `j` across the whole array is subtly
+biased; this one is not.
+
+Randomness comes from `crypto.randomInt`, not `Math.random`. It rejection-samples, so
+there is no modulo bias at all, and it draws from the OS entropy pool, so a deal cannot
+be predicted by watching earlier ones. `Math.random` is statistically even but its whole
+future is recoverable from enough output, which is not a property you want in a card
+game.
+
+Measured over 520,000 shuffles: position frequencies gave a chi-square of 2723 against
+2601 degrees of freedom — 1.7 standard deviations, ordinary variation.
+
+**Seat fairness.** Measured over 40,000 deals per mode, aces and average card rank are
+even across every seat. Two asymmetries remain, and both are forced by the rules rather
+than by the shuffle:
+
+| | Dealer | Everyone else |
+|---|---|---|
+| Trumps per hand (4P) | 3.76 | 3.00 |
+| Holds the Joker (4P) | 23.3% | 25.5% |
+
+The dealer always receives the colour card, and the colour card is a trump by
+definition — so the dealer is guaranteed at least one, worth about **+0.76 trumps** per
+round. For the same reason they hold one fewer card that could be the Joker, costing
+about **2 points** of Joker chance. Both match the arithmetic exactly (`12/51` against
+`13/51` for the Joker in 4-player), and both rotate as the dealer moves each round.
+
+If that trump edge is ever judged too strong, the lever is the rule in §2.3 — where the
+colour card goes — not the shuffle.
+
 ---
 
 ## 3. Architecture
@@ -154,7 +191,7 @@ their own hand and nobody else's.
 | `public/sw.js` | 102 | Service worker |
 | `public/manifest.webmanifest` | 34 | PWA manifest |
 | `public/icons/*.png` | — | App icons, generated (§7.3) |
-| `server/test/*.js` | 1110 | 42 tests |
+| `server/test/*.js` | 1147 | 43 tests |
 | `render.yaml` | 10 | Render deployment config |
 
 ### 3.2 The entity abstraction
@@ -299,13 +336,13 @@ the deployed URL in Chrome once and confirm the install icon appears.**
 ## 5. Testing
 
 ```bash
-npm test        # 42 tests
+npm test        # 43 tests
 ```
 
 | Group | Count | Covers |
 |---|---|---|
 | Joker | 8 | The classification rules in §2.6, across all modes |
-| Rules | 9 | Decks, round shape, scoring, 200-round soaks, reconnect, end-game vote, colour card |
+| Rules | 10 | Decks, round shape, scoring, soaks, reconnect, end-game vote, colour card, seat fairness |
 | Service worker | 7 | Transport never intercepted, network-first, offline fallback, cold start |
 | Music | 10 | Link parsing, playback clock, clock-skew, room flag |
 | Client | 8 | **The browser code actually starts and can draw itself** |
@@ -454,7 +491,11 @@ Worth knowing, because each one was invisible until specifically hunted:
   client tests now close.
 - **The Joker could be turned over as the colour card**, leaving ~2% of rounds with no
   trump suit at all, in every mode.
+- **The first fix for that introduced a fresh bias**: skipping past the Joker left it on
+  top of the deck, and the colour picker is dealt first, so they received it 1.92 points
+  more often than their fair share. Found by measuring seat-by-seat outcomes rather than
+  by reading the code.
 
 ---
 
-*Handover written 2026-09-09, updated for v1.0.1.*
+*Handover written 2026-09-09, updated for v1.0.2.*

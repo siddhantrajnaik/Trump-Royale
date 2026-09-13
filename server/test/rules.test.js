@@ -197,3 +197,42 @@ test('the colour card is never the Joker, so every round has a trump suit', () =
     assert.strictEqual(sawJoker, 400, label + ': the colour card always lands with the dealer');
   }
 });
+
+test('the deal does not favour any seat', () => {
+  // Skipping past a Joker on top of the deck instead of reshuffling left it
+  // stranded there, and since the colour picker is dealt first they collected
+  // it an extra 1/52 of the time. Everything below the dealer must be even.
+  //
+  // The dealer is legitimately different: they always receive the colour card,
+  // which is never the Joker, so they hold one fewer card that could be it.
+  // That is arithmetic from the rules, not a bias, so it is asserted rather
+  // than smoothed over.
+  const DEALS = 30000;
+  const count = 4, deck = 52, per = 13;
+
+  const joker = new Array(count).fill(0);
+  for (let d = 0; d < DEALS; d++) {
+    const e = build('ffa', count);
+    for (let s = 0; s < count; s++) {
+      if (e.hands[e.players[s].id].some(c => c.rank === 'JOKER')) joker[s]++;
+    }
+  }
+  const pct = joker.map(x => (100 * x) / DEALS);
+
+  // Seat 0 deals, seat 1 is the colour picker and is dealt first.
+  const colourPicker = pct[1];
+  const otherNonDealers = (pct[2] + pct[3]) / 2;
+  assert.ok(Math.abs(colourPicker - otherNonDealers) < 1.2,
+    'the colour picker holds the Joker as often as the other non-dealers, not more: '
+    + colourPicker.toFixed(2) + '% vs ' + otherNonDealers.toFixed(2) + '%');
+
+  const expectedOther = (100 * per) / (deck - 1);      // 25.49%
+  const expectedDealer = (100 * (per - 1)) / (deck - 1); // 23.53%
+  for (const s of [1, 2, 3]) {
+    assert.ok(Math.abs(pct[s] - expectedOther) < 1.2,
+      'seat ' + s + ' is near its fair share: ' + pct[s].toFixed(2) + '% vs ' + expectedOther.toFixed(2) + '%');
+  }
+  assert.ok(Math.abs(pct[0] - expectedDealer) < 1.2,
+    'the dealer matches what the colour-card rule predicts: '
+    + pct[0].toFixed(2) + '% vs ' + expectedDealer.toFixed(2) + '%');
+});
