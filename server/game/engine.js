@@ -182,7 +182,14 @@ class GameEngine {
     }
 
     let deck = shuffle(buildDeck(this.playerCount));
-    const colorCard = deck.shift();
+
+    // The colour card names the trump suit, so it cannot be the suitless Joker.
+    // Turning it over used to leave the whole round with no trump at all, about
+    // one round in fifty. Take the first suited card from the top instead;
+    // anything skipped stays where it is, so the Joker is still dealt, the deck
+    // still divides exactly, and the colour card still lands with the dealer.
+    const colorIdx = deck.findIndex(c => c.rank !== 'JOKER');
+    const colorCard = deck.splice(colorIdx, 1)[0];
     this.colorCard = colorCard;
     this.trumpSuit = colorCard.suit;
     deck.push(colorCard);

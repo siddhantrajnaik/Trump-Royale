@@ -6,7 +6,7 @@ browser, installs as an app, needs no database, and deploys free.
 ```bash
 npm install
 npm start        # http://localhost:3000
-npm test         # 41 tests
+npm test         # 42 tests
 ```
 
 Create a room, share the 4-character code, everyone joins, host starts.

@@ -165,3 +165,35 @@ test('ending the game needs every present player, not every seat', () => {
   e.requestEndGame(e.players[3].id);
   assert.strictEqual(e.phase, 'game_over', 'all 4 present players can end it');
 });
+
+test('the colour card is never the Joker, so every round has a trump suit', () => {
+  // The colour card names the trump suit and the Joker has no suit. Turning it
+  // over used to leave the round trumpless, about one round in fifty, with a
+  // blank trump indicator that looked like a bug.
+  for (const m of MODES) {
+    const label = m.count + 'P ' + m.mode;
+    let sawJoker = 0;
+
+    for (let r = 0; r < 400; r++) {
+      const e = build(m.mode, m.count);
+      const ids = dealt(e);
+
+      assert.notStrictEqual(e.colorCard.rank, 'JOKER', label + ': colour card is a suited card');
+      assert.ok(e.trumpSuit, label + ': a trump suit was set');
+      assert.ok(['spades', 'hearts', 'diamonds', 'clubs'].includes(e.trumpSuit),
+        label + ': trump is one of the four suits');
+
+      // Skipping the Joker must not cost us the Joker, change the deck size, or
+      // stop the colour card reaching the dealer.
+      assert.ok(ids.includes('JOKER'), label + ': the Joker is still dealt');
+      assert.strictEqual(ids.length, m.cards, label + ': deck size unchanged');
+      assert.ok(ids.includes(e.colorCard.id), label + ': the colour card is still dealt');
+
+      if (e.hands[e.players[e.dealerSeat].id].some(c => c.id === e.colorCard.id)) sawJoker++;
+    }
+
+    // The colour card goes to the bottom of the deck and the deck divides
+    // exactly, so it is always the dealer's last card.
+    assert.strictEqual(sawJoker, 400, label + ': the colour card always lands with the dealer');
+  }
+});

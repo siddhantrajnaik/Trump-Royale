@@ -1,10 +1,10 @@
-# Trump Card Royal — Handover, v1.0.0
+# Trump Card Royal — Handover, v1.0.1
 
 A real-time multiplayer trick-taking card game for 4, 5 or 6 players. Browser-based,
 installable as an app, no database, deployable free.
 
 - **Repository:** https://github.com/siddhantrajnaik/Trump-Royale
-- **Version:** 1.0.0 (git tag `v1.0.0`)
+- **Version:** 1.0.1 (git tag `v1.0.1`)
 - **Stack:** Node.js + Express + Socket.IO on the server; plain HTML/CSS/JavaScript
   on the client. No framework, no build step, no database.
 - **Runtime dependencies:** exactly two — `express` and `socket.io`.
@@ -19,7 +19,7 @@ npm start            # http://localhost:3000
 ```
 
 ```bash
-npm test             # 41 tests, ~30 seconds
+npm test             # 42 tests, ~30 seconds
 npm run dev          # same as start, restarts on file change
 ```
 
@@ -62,10 +62,11 @@ that last property matters, see §2.3.
 Because each deck divides exactly, the colour card is dealt last and lands in the
 **dealer's hand**. Change the deck size without preserving that and this breaks.
 
-**Known edge case:** if the colour card is itself the Joker, it has no suit, so the
-round has no trump at all — roughly 1 round in 33 at 5 players. The game plays fine,
-but the trump indicator is blank and players may think it's a bug. Not yet decided
-what *should* happen (redraw, or play trumpless). See §9.
+**The colour card is never the Joker.** The Joker has no suit, so turning it over left
+the whole round with no trump — about 1 round in 50, with a blank trump indicator that
+looked like a bug. The deal now takes the first *suited* card from the top and leaves
+anything skipped where it is, so the Joker is still dealt, the deck still divides
+exactly, and the colour card still lands with the dealer.
 
 ### 2.4 Calling
 
@@ -153,7 +154,7 @@ their own hand and nobody else's.
 | `public/sw.js` | 102 | Service worker |
 | `public/manifest.webmanifest` | 34 | PWA manifest |
 | `public/icons/*.png` | — | App icons, generated (§7.3) |
-| `server/test/*.js` | 1084 | 41 tests |
+| `server/test/*.js` | 1110 | 42 tests |
 | `render.yaml` | 10 | Render deployment config |
 
 ### 3.2 The entity abstraction
@@ -298,13 +299,13 @@ the deployed URL in Chrome once and confirm the install icon appears.**
 ## 5. Testing
 
 ```bash
-npm test        # 41 tests
+npm test        # 42 tests
 ```
 
 | Group | Count | Covers |
 |---|---|---|
 | Joker | 8 | The classification rules in §2.6, across all modes |
-| Rules | 8 | Decks, round shape, scoring, 200-round soaks, reconnect, end-game vote |
+| Rules | 9 | Decks, round shape, scoring, 200-round soaks, reconnect, end-game vote, colour card |
 | Service worker | 7 | Transport never intercepted, network-first, offline fallback, cold start |
 | Music | 10 | Link parsing, playback clock, clock-skew, room flag |
 | Client | 8 | **The browser code actually starts and can draw itself** |
@@ -392,7 +393,6 @@ shouldn't have to know about it.
 | **Music sync only tested on localhost** | Real latency untested; design accounts for it |
 | **No bots** | You need exactly 4, 5 or 6 humans to start |
 | **Duplicate names break reconnect** | Two players called "Alex" — the wrong one can reclaim the wrong seat. Nothing prevents the duplicate at join time |
-| **No trump when the colour card is the Joker** | ~1 round in 33; plays fine but the indicator is blank |
 | **No round history** | The scoreboard shows totals, not what happened per round |
 
 ---
@@ -404,12 +404,10 @@ Roughly in order of value:
 1. **Bots to fill empty seats.** The single biggest limitation — it turns "needs five
    friends simultaneously" into "playable whenever". The engine already exposes
    `getLegalCards`, so a simple bot is short.
-2. **Decide the no-trump case** (§2.3). Redraw the colour card, or show "No trump this
-   round" so it doesn't look broken.
-3. **Reject duplicate names** at the lobby — a few lines, closes a real seat-mixup.
-4. **Survive a restart.** Writing room state to a file at each round end would let games
+2. **Reject duplicate names** at the lobby — a few lines, closes a real seat-mixup.
+3. **Survive a restart.** Writing room state to a file at each round end would let games
    outlive a sleep.
-5. **Round history** on the scoreboard.
+4. **Round history** on the scoreboard.
 
 ---
 
@@ -454,7 +452,9 @@ Worth knowing, because each one was invisible until specifically hunted:
   was mute, plus a 42×33px mute button 8px from the scoreboard button.
 - **The client could be completely broken while tests said 33/33** — the gap that §5's
   client tests now close.
+- **The Joker could be turned over as the colour card**, leaving ~2% of rounds with no
+  trump suit at all, in every mode.
 
 ---
 
-*Handover written 2026-09-09 for v1.0.0.*
+*Handover written 2026-09-09, updated for v1.0.1.*
