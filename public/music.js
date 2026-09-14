@@ -29,6 +29,10 @@ const Music = (() => {
   let skewMs = 0;                  // serverClock - localClock
   let lastNudge = 0;
   let volume = clampVolume(localStorage.getItem('tcr_music_vol'));
+  // Dropping out is personal and local: nothing is sent to the server, so the
+  // track keeps playing for everyone else. It is remembered because somebody who
+  // does not want music now will not want it after the next reload either.
+  let optedOut = localStorage.getItem('tcr_music_out') === '1';
 
   function clampVolume(v) {
     const n = Number(v);
@@ -113,7 +117,7 @@ const Music = (() => {
   // Bring the local player into line with the room.
   function sync() {
     if (!player || !player.getPlayerState || !current || !current.videoId) return;
-    if (!started) return;
+    if (!started || optedOut) return;
 
     let state;
     try { state = player.getPlayerState(); } catch (e) { return; }
@@ -153,6 +157,16 @@ const Music = (() => {
     }
 
     card.style.display = 'block';
+
+    if (optedOut) {
+      // Never load the API for someone who has dropped out, and silence a player
+      // they built before they left. Pause rather than stop: rejoining then only
+      // has to seek, and no iframe is torn down and rebuilt.
+      if (player && player.pauseVideo) { try { player.pauseVideo(); } catch (e) {} }
+      render();
+      return;
+    }
+
     loadApi();
     if (!apiReady) return;
 
@@ -176,7 +190,16 @@ const Music = (() => {
     const joinBtn = $m('music-join');
     const playBtn = $m('music-playpause');
     const note = $m('music-note');
+    const wrap = $m('yt-player-wrap');
+    const controls = $m('music-controls');
+    const out = $m('music-out');
     if (!joinBtn) return;
+
+    // Dropped out: the card keeps only the way back in.
+    if (wrap) wrap.style.display = optedOut ? 'none' : 'block';
+    if (controls) controls.style.display = optedOut ? 'none' : 'flex';
+    if (out) out.style.display = optedOut ? 'flex' : 'none';
+    if (optedOut) { if (note) note.textContent = ''; return; }
 
     joinBtn.style.display = started ? 'none' : 'flex';
     if (playBtn) playBtn.textContent = current && current.playing ? '⏸' : '▶';
@@ -240,8 +263,10 @@ const Music = (() => {
       const res = await new Promise(r => socket.emit('music-set', { url }, x => r(x || {})));
       setBtn.disabled = false;
       if (res.error) { if (err) err.textContent = res.error; return; }
-      // Setting a track is a gesture, so this browser may start playing now.
+      // Setting a track is a gesture, so this browser may start playing now -
+      // and choosing one plainly means you want to hear it, so it un-drops you.
       started = true;
+      if (optedOut) { optedOut = false; localStorage.removeItem('tcr_music_out'); }
       if (err) err.textContent = '';
       if (input) input.value = '';
       overlay.style.display = 'none';
@@ -266,6 +291,31 @@ const Music = (() => {
           try { player.seekTo(at, true); player.playVideo(); } catch (e) {}
         }
         render();
+      });
+    }
+
+    // Dropping out and coming back are local only - no socket traffic, so the
+    // rest of the table never notices. Pausing for everyone is the ⏸ button.
+    const leaveBtn = $m('music-leave');
+    const rejoinBtn = $m('music-rejoin');
+    if (leaveBtn) {
+      leaveBtn.addEventListener('click', () => {
+        optedOut = true;
+        localStorage.setItem('tcr_music_out', '1');
+        apply();
+      });
+    }
+    if (rejoinBtn) {
+      rejoinBtn.addEventListener('click', () => {
+        optedOut = false;
+        localStorage.removeItem('tcr_music_out');
+        started = true;          // the click is the gesture that allows audio
+        lastNudge = Date.now();
+        apply();
+        if (player && current) {
+          const at = Math.max(0, targetSeconds(current));
+          try { player.seekTo(at, true); if (current.playing) player.playVideo(); } catch (e) {}
+        }
       });
     }
 
@@ -316,6 +366,7 @@ const Music = (() => {
     debug: () => ({
       skewMs,
       started,
+      optedOut,
       videoId: current && current.videoId,
       playing: current && current.playing,
       target: current ? targetSeconds(current) : null,

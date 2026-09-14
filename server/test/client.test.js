@@ -190,7 +190,31 @@ function engineState(count, mode, phase) {
 // every window must be closed or the test process never exits.
 function withClient(fn) {
   const c = bootClient();
-  try { return fn(c); } finally { try { c.dom.window.close(); } catch (e) {} }
+  const close = () => { try { c.dom.window.close(); } catch (e) {} };
+  let out;
+  try {
+    out = fn(c);
+  } catch (err) {
+    close();
+    throw err;
+  }
+  // An async body must keep its window until it finishes, so close on settle.
+  if (out && typeof out.then === 'function') return out.then(
+    (v) => { close(); return v; },
+    (e) => { close(); throw e; },
+  );
+  close();
+  return out;
+}
+
+// Both scripts defer their setup to DOMContentLoaded, which jsdom fires after
+// the constructor returns - so straight after booting, nothing is wired to a
+// button yet. Any test that clicks something has to wait here first.
+async function wired(c) {
+  for (let i = 0; i < 50 && c.window.document.readyState !== 'complete'; i++) {
+    await new Promise(r => setTimeout(r, 10));
+  }
+  await new Promise(r => setTimeout(r, 0));
 }
 
 test("client: the browser scripts load without throwing", () => {
@@ -266,6 +290,35 @@ test("client: a disconnected player surfaces in the banner", () => {
     const banner = c.window.document.getElementById("connection-banner");
     assert.notStrictEqual(banner.style.display, "none", "the banner is shown");
     assert.ok(/Bob/.test(banner.textContent), "it names who is missing");
+  });
+});
+
+// Dropping out has to be strictly personal. If it ever reached the server it
+// would pause the track for the whole table, which is the opposite of the point.
+test("client: a player can drop out of the music on their own", async () => {
+  const room = { music: MusicServer.emptyMusic(), musicEnabled: true };
+  MusicServer.setTrack(room, "dQw4w9WgXcQ", "p0", Date.now());
+  const state = engineState(4, "ffa", "playing");
+  state.music = MusicServer.payload(room, Date.now());
+
+  return withClient(async c => {
+    const doc = c.window.document;
+    await wired(c);
+    c.socketHandlers["game-state"](state);
+
+    doc.getElementById("music-leave").click();
+    assert.strictEqual(c.window.eval("Music.debug().optedOut"), true, "the client knows it is out");
+    assert.strictEqual(doc.getElementById("music-out").style.display, "flex", "the way back in is offered");
+    assert.strictEqual(doc.getElementById("yt-player-wrap").style.display, "none", "the video is gone");
+    assert.deepStrictEqual(c.emitted.filter(e => e.ev === "music-control"), [],
+      "leaving told the server nothing - everyone else keeps listening");
+
+    doc.getElementById("music-rejoin").click();
+    assert.strictEqual(c.window.eval("Music.debug().optedOut"), false, "and can come back");
+    assert.strictEqual(doc.getElementById("yt-player-wrap").style.display, "block", "the video returns");
+    assert.deepStrictEqual(c.emitted.filter(e => e.ev === "music-control"), [],
+      "rejoining is just as quiet");
+    assert.deepStrictEqual(c.errors, [], "no error either way");
   });
 });
 

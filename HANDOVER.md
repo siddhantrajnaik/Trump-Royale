@@ -1,10 +1,10 @@
-# Trump Card Royal — Handover, v1.0.2
+# Trump Card Royal — Handover, v1.0.3
 
 A real-time multiplayer trick-taking card game for 4, 5 or 6 players. Browser-based,
 installable as an app, no database, deployable free.
 
 - **Repository:** https://github.com/siddhantrajnaik/Trump-Royale
-- **Version:** 1.0.2 (git tag `v1.0.2`)
+- **Version:** 1.0.3 (git tag `v1.0.3`)
 - **Stack:** Node.js + Express + Socket.IO on the server; plain HTML/CSS/JavaScript
   on the client. No framework, no build step, no database.
 - **Runtime dependencies:** exactly two — `express` and `socket.io`.
@@ -19,7 +19,7 @@ npm start            # http://localhost:3000
 ```
 
 ```bash
-npm test             # 43 tests, under 10 seconds
+npm test             # 44 tests, under 10 seconds
 npm run dev          # same as start, restarts on file change
 ```
 
@@ -183,15 +183,15 @@ their own hand and nobody else's.
 | `server/index.js` | 283 | HTTP, static files, socket events, room lifecycle |
 | `server/game/engine.js` | 574 | **All game rules.** Deck, dealing, calls, tricks, scoring |
 | `server/music.js` | 103 | Shared-music state and the playback clock |
-| `public/index.html` | 173 | Every screen and overlay |
+| `public/index.html` | 179 | Every screen and overlay |
 | `public/app.js` | 799 | Rendering, input, screen flow |
-| `public/style.css` | 185 | All styling |
+| `public/style.css` | 192 | All styling |
 | `public/sound.js` | 152 | Synthesised sound effects |
-| `public/music.js` | 325 | YouTube player and drift correction |
+| `public/music.js` | 376 | YouTube player and drift correction |
 | `public/sw.js` | 102 | Service worker |
 | `public/manifest.webmanifest` | 34 | PWA manifest |
 | `public/icons/*.png` | — | App icons, generated (§7.3) |
-| `server/test/*.js` | 1147 | 43 tests |
+| `server/test/*.js` | 1579 | 44 tests |
 | `render.yaml` | 10 | Render deployment config |
 
 ### 3.2 The entity abstraction
@@ -261,6 +261,7 @@ Everything here was broken at one point and is now covered by tests.
 | `tcr_sound` | `on` / `off` — sound effects |
 | `tcr_music_room` | `on` / `off` — remembered music choice for new rooms |
 | `tcr_music_vol` | 0–100, this player's music volume |
+| `tcr_music_out` | `1` if this player has dropped out of the shared music (§4.4) |
 
 ### 4.2 The hand
 
@@ -306,7 +307,21 @@ Turn it off per room on the Create screen. When off, the button is hidden **and*
 server refuses `music-set` / `music-control` — hiding UI alone leaves it reachable from
 the console.
 
-Diagnose with `Music.debug()`.
+**Two separate ideas, and they are easy to confuse:**
+
+| Control | Scope | Mechanism |
+|---|---|---|
+| ⏸ play/pause | the whole room | `music-control` to the server |
+| ✕ drop out / **Join back** | just that player | client-side only, nothing sent |
+
+Dropping out is deliberately silent: it never emits, so the rest of the table keeps
+listening. The local player is *paused*, not destroyed, so coming back only has to seek.
+The choice is remembered in `tcr_music_out` — somebody who doesn't want music now will
+not want it after a reload — and setting a track yourself clears it, since choosing a
+song plainly means you want to hear it. A regression test asserts no socket traffic
+escapes either button; it fails if a future edit makes leaving pause the room.
+
+Diagnose with `Music.debug()` — `optedOut` is in there.
 
 **Limits that cannot be fixed in code:** ads interrupt only the person watching them ·
 iOS stops playback when the screen locks · live streams won't embed (the card says so)
@@ -336,7 +351,7 @@ the deployed URL in Chrome once and confirm the install icon appears.**
 ## 5. Testing
 
 ```bash
-npm test        # 43 tests
+npm test        # 44 tests
 ```
 
 | Group | Count | Covers |
@@ -345,7 +360,7 @@ npm test        # 43 tests
 | Rules | 10 | Decks, round shape, scoring, soaks, reconnect, end-game vote, colour card, seat fairness |
 | Service worker | 7 | Transport never intercepted, network-first, offline fallback, cold start |
 | Music | 10 | Link parsing, playback clock, clock-skew, room flag |
-| Client | 8 | **The browser code actually starts and can draw itself** |
+| Client | 9 | **The browser code actually starts and can draw itself** |
 
 **Why the client tests exist.** Every other test runs server-side. The suite once
 reported 33/33 while the client was throwing on load and half the app never wired up —

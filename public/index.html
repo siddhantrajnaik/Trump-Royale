@@ -97,8 +97,14 @@
             <button id="music-playpause" class="mini" type="button" title="Play / pause for everyone">▶</button>
             <button id="music-resync" class="mini" type="button" title="Re-sync me to everyone else">⟳</button>
             <input id="music-volume" type="range" min="0" max="100" step="1" title="My volume">
+            <button id="music-leave" class="mini" type="button" title="Drop out of the music - just for me">✕</button>
           </div>
           <div id="music-note"></div>
+          <!-- Shown instead of the player to someone who has dropped out. -->
+          <div id="music-out" style="display:none">
+            <span>Music is off for you</span>
+            <button id="music-rejoin" type="button">Join back</button>
+          </div>
         </div>
       </div>
 
