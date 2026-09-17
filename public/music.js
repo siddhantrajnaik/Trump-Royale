@@ -156,17 +156,17 @@ const Music = (() => {
       return;
     }
 
-    card.style.display = 'block';
-
     if (optedOut) {
-      // Never load the API for someone who has dropped out, and silence a player
-      // they built before they left. Pause rather than stop: rejoining then only
-      // has to seek, and no iframe is torn down and rebuilt.
+      // Out means out: no video on their table at all, and the API is never
+      // loaded for them. Pause rather than stop a player they built before they
+      // left, so coming back only has to seek instead of rebuilding an iframe.
+      card.style.display = 'none';
       if (player && player.pauseVideo) { try { player.pauseVideo(); } catch (e) {} }
       render();
       return;
     }
 
+    card.style.display = 'block';
     loadApi();
     if (!apiReady) return;
 
@@ -190,22 +190,40 @@ const Music = (() => {
     const joinBtn = $m('music-join');
     const playBtn = $m('music-playpause');
     const note = $m('music-note');
-    const wrap = $m('yt-player-wrap');
-    const controls = $m('music-controls');
-    const out = $m('music-out');
+    renderMe();
     if (!joinBtn) return;
-
-    // Dropped out: the card keeps only the way back in.
-    if (wrap) wrap.style.display = optedOut ? 'none' : 'block';
-    if (controls) controls.style.display = optedOut ? 'none' : 'flex';
-    if (out) out.style.display = optedOut ? 'flex' : 'none';
-    if (optedOut) { if (note) note.textContent = ''; return; }
+    if (optedOut) return;
 
     joinBtn.style.display = started ? 'none' : 'flex';
     if (playBtn) playBtn.textContent = current && current.playing ? '⏸' : '▶';
     if (note && started) {
       note.textContent = current && current.playing ? '' : 'Paused for everyone';
     }
+  }
+
+  // The overlay row that says where *you* stand, independent of the room.
+  function renderMe() {
+    const openBtn = $m('music-toggle-btn');
+    const status = $m('music-me-status');
+    const btn = $m('music-me-btn');
+    if (openBtn) {
+      openBtn.classList.toggle('off', optedOut);
+      openBtn.title = optedOut ? 'Music is off for you - click to join back' : 'Shared music';
+    }
+    if (status) {
+      status.textContent = optedOut
+        ? 'Music is off for you. The others can still hear it.'
+        : "You are in. Leaving only affects you - it won't stop anyone else's.";
+    }
+    if (btn) btn.textContent = optedOut ? 'Join the music' : 'Leave the music';
+  }
+
+  function setOptedOut(value) {
+    optedOut = value;
+    if (value) localStorage.setItem('tcr_music_out', '1');
+    else localStorage.removeItem('tcr_music_out');
+    apply();
+    renderMe();
   }
 
   function onState(music) {
@@ -221,6 +239,7 @@ const Music = (() => {
     if (openBtn) openBtn.style.display = '';
     current = music || null;
     apply();
+    renderMe();   // apply() returns early when nothing is playing
   }
 
   // ---- wiring --------------------------------------------------------------
@@ -266,7 +285,7 @@ const Music = (() => {
       // Setting a track is a gesture, so this browser may start playing now -
       // and choosing one plainly means you want to hear it, so it un-drops you.
       started = true;
-      if (optedOut) { optedOut = false; localStorage.removeItem('tcr_music_out'); }
+      if (optedOut) setOptedOut(false);
       if (err) err.textContent = '';
       if (input) input.value = '';
       overlay.style.display = 'none';
@@ -294,28 +313,28 @@ const Music = (() => {
       });
     }
 
-    // Dropping out and coming back are local only - no socket traffic, so the
-    // rest of the table never notices. Pausing for everyone is the ⏸ button.
-    const leaveBtn = $m('music-leave');
-    const rejoinBtn = $m('music-rejoin');
-    if (leaveBtn) {
-      leaveBtn.addEventListener('click', () => {
-        optedOut = true;
-        localStorage.setItem('tcr_music_out', '1');
-        apply();
-      });
+    // Joining and leaving are local only - no socket traffic, so the rest of the
+    // table never notices. Pausing for *everyone* is the ⏸ button, deliberately
+    // somewhere else.
+    function joinMe() {
+      started = true;            // the click is the gesture that allows audio
+      lastNudge = Date.now();
+      setOptedOut(false);
+      if (player && current) {
+        const at = Math.max(0, targetSeconds(current));
+        try { player.seekTo(at, true); if (current.playing) player.playVideo(); } catch (e) {}
+      }
     }
-    if (rejoinBtn) {
-      rejoinBtn.addEventListener('click', () => {
-        optedOut = false;
-        localStorage.removeItem('tcr_music_out');
-        started = true;          // the click is the gesture that allows audio
-        lastNudge = Date.now();
-        apply();
-        if (player && current) {
-          const at = Math.max(0, targetSeconds(current));
-          try { player.seekTo(at, true); if (current.playing) player.playVideo(); } catch (e) {}
-        }
+    const leaveBtn = $m('music-leave');
+    const meBtn = $m('music-me-btn');
+    // ✕ on the card: the quick way out while a track is playing.
+    if (leaveBtn) leaveBtn.addEventListener('click', () => setOptedOut(true));
+    // The overlay row: works either way, and whether or not anything is playing,
+    // so somebody can opt out before the first track is ever set.
+    if (meBtn) {
+      meBtn.addEventListener('click', () => {
+        if (optedOut) joinMe();
+        else setOptedOut(true);
       });
     }
 
@@ -345,6 +364,7 @@ const Music = (() => {
       });
     }
 
+    renderMe();   // a choice remembered from last time shows straight away
     measureSkew(5);
     setInterval(sync, SYNC_INTERVAL_MS);
     // Coming back from a locked screen or another app is exactly when drift is

@@ -19,7 +19,7 @@ npm start            # http://localhost:3000
 ```
 
 ```bash
-npm test             # 44 tests, under 10 seconds
+npm test             # 45 tests, under 10 seconds
 npm run dev          # same as start, restarts on file change
 ```
 
@@ -183,15 +183,15 @@ their own hand and nobody else's.
 | `server/index.js` | 283 | HTTP, static files, socket events, room lifecycle |
 | `server/game/engine.js` | 574 | **All game rules.** Deck, dealing, calls, tricks, scoring |
 | `server/music.js` | 103 | Shared-music state and the playback clock |
-| `public/index.html` | 179 | Every screen and overlay |
+| `public/index.html` | 180 | Every screen and overlay |
 | `public/app.js` | 799 | Rendering, input, screen flow |
-| `public/style.css` | 192 | All styling |
+| `public/style.css` | 191 | All styling |
 | `public/sound.js` | 152 | Synthesised sound effects |
-| `public/music.js` | 376 | YouTube player and drift correction |
+| `public/music.js` | 396 | YouTube player and drift correction |
 | `public/sw.js` | 102 | Service worker |
 | `public/manifest.webmanifest` | 34 | PWA manifest |
 | `public/icons/*.png` | — | App icons, generated (§7.3) |
-| `server/test/*.js` | 1579 | 44 tests |
+| `server/test/*.js` | 1612 | 45 tests |
 | `render.yaml` | 10 | Render deployment config |
 
 ### 3.2 The entity abstraction
@@ -307,19 +307,31 @@ Turn it off per room on the Create screen. When off, the button is hidden **and*
 server refuses `music-set` / `music-control` — hiding UI alone leaves it reachable from
 the console.
 
-**Two separate ideas, and they are easy to confuse:**
+**Taking part is per player.** Three separate scopes, and mixing them up is the trap:
 
-| Control | Scope | Mechanism |
-|---|---|---|
-| ⏸ play/pause | the whole room | `music-control` to the server |
-| ✕ drop out / **Join back** | just that player | client-side only, nothing sent |
+| Control | Where | Scope | Mechanism |
+|---|---|---|---|
+| On / Off at room creation | Create screen | the whole room, permanently | `musicEnabled`, server-enforced |
+| ⏸ play / pause · ⏹ stop | music card, 🎵 overlay | the whole room, right now | `music-control` to the server |
+| ✕ · **Leave / Join the music** | music card, 🎵 overlay | **just that player** | client-side only, nothing sent |
 
-Dropping out is deliberately silent: it never emits, so the rest of the table keeps
-listening. The local player is *paused*, not destroyed, so coming back only has to seek.
-The choice is remembered in `tcr_music_out` — somebody who doesn't want music now will
-not want it after a reload — and setting a track yourself clears it, since choosing a
-song plainly means you want to hear it. A regression test asserts no socket traffic
-escapes either button; it fails if a future edit makes leaving pause the room.
+Leaving is deliberately silent — it emits nothing, so the rest of the table keeps
+listening. For the player who left, the card disappears from the table completely and
+the YouTube API is never loaded; the 🎵 corner button dims to 40% and stays as the way
+back in. A player they had already built is *paused*, not destroyed, so rejoining only
+has to seek instead of rebuilding an iframe.
+
+The **Leave / Join** control lives in the 🎵 overlay as well as on the card, because the
+card only exists while something is playing — somebody who wants no music at all needs
+to be able to say so before the first track is ever set.
+
+The choice is remembered in `tcr_music_out`: somebody who doesn't want music now will not
+want it after a reload either. Setting a track yourself clears it, since choosing a song
+plainly means you want to hear it.
+
+Two regression tests cover this. One asserts no socket traffic escapes either button —
+it fails if a future edit turns leaving into a room-wide pause. The other opts out with
+nothing playing and then pushes a track through, asserting the card never appears.
 
 Diagnose with `Music.debug()` — `optedOut` is in there.
 
@@ -351,7 +363,7 @@ the deployed URL in Chrome once and confirm the install icon appears.**
 ## 5. Testing
 
 ```bash
-npm test        # 44 tests
+npm test        # 45 tests
 ```
 
 | Group | Count | Covers |
@@ -360,7 +372,7 @@ npm test        # 44 tests
 | Rules | 10 | Decks, round shape, scoring, soaks, reconnect, end-game vote, colour card, seat fairness |
 | Service worker | 7 | Transport never intercepted, network-first, offline fallback, cold start |
 | Music | 10 | Link parsing, playback clock, clock-skew, room flag |
-| Client | 9 | **The browser code actually starts and can draw itself** |
+| Client | 10 | **The browser code actually starts and can draw itself** |
 
 **Why the client tests exist.** Every other test runs server-side. The suite once
 reported 33/33 while the client was throwing on load and half the app never wired up —

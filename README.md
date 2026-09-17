@@ -6,7 +6,7 @@ browser, installs as an app, needs no database, and deploys free.
 ```bash
 npm install
 npm start        # http://localhost:3000
-npm test         # 44 tests
+npm test         # 45 tests
 ```
 
 Create a room, share the 4-character code, everyone joins, host starts.
@@ -17,7 +17,8 @@ Create a room, share the 4-character code, everyone joins, host starts.
 - **Server-authoritative rules** — follow suit, trump, secret calls, Joker special cases
 - **Reconnect** — drop out and rejoin with your name; hand, call and score all survive
 - **Sound** — synthesised in the browser, no audio files
-- **Shared music** — paste a YouTube link, everyone hears the same track in sync (desktop)
+- **Shared music** — paste a YouTube link, everyone hears the same track in sync (desktop).
+  Joining or leaving is each player's own call; leaving is silent for everyone else
 - **Installable** — works as a phone home-screen app and a desktop app
 
 ## Stack

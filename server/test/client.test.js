@@ -308,17 +308,50 @@ test("client: a player can drop out of the music on their own", async () => {
 
     doc.getElementById("music-leave").click();
     assert.strictEqual(c.window.eval("Music.debug().optedOut"), true, "the client knows it is out");
-    assert.strictEqual(doc.getElementById("music-out").style.display, "flex", "the way back in is offered");
-    assert.strictEqual(doc.getElementById("yt-player-wrap").style.display, "none", "the video is gone");
+    assert.strictEqual(doc.getElementById("music-card").style.display, "none",
+      "the card is gone from their table entirely");
+    assert.ok(doc.getElementById("music-toggle-btn").classList.contains("off"),
+      "the corner button shows they are out, and is still there to come back through");
+    assert.strictEqual(doc.getElementById("music-me-btn").textContent, "Join the music",
+      "the overlay offers the way back in");
     assert.deepStrictEqual(c.emitted.filter(e => e.ev === "music-control"), [],
       "leaving told the server nothing - everyone else keeps listening");
 
-    doc.getElementById("music-rejoin").click();
+    doc.getElementById("music-me-btn").click();
     assert.strictEqual(c.window.eval("Music.debug().optedOut"), false, "and can come back");
-    assert.strictEqual(doc.getElementById("yt-player-wrap").style.display, "block", "the video returns");
+    assert.strictEqual(doc.getElementById("music-card").style.display, "block", "the card returns");
+    assert.strictEqual(doc.getElementById("music-me-btn").textContent, "Leave the music",
+      "and can leave again");
     assert.deepStrictEqual(c.emitted.filter(e => e.ev === "music-control"), [],
       "rejoining is just as quiet");
     assert.deepStrictEqual(c.errors, [], "no error either way");
+  });
+});
+
+// Opting out has to work before anything is playing, or the only way to say
+// "not for me" is to wait for someone else to start a track first.
+test("client: opting out up front keeps a later track off your table", async () => {
+  const quiet = engineState(4, "ffa", "playing");   // music enabled, nothing set
+
+  const room = { music: MusicServer.emptyMusic(), musicEnabled: true };
+  MusicServer.setTrack(room, "dQw4w9WgXcQ", "p0", Date.now());
+  const withTrack = engineState(4, "ffa", "playing");
+  withTrack.music = MusicServer.payload(room, Date.now());
+
+  return withClient(async c => {
+    const doc = c.window.document;
+    await wired(c);
+    c.socketHandlers["game-state"](quiet);
+
+    doc.getElementById("music-me-btn").click();      // out, with nothing playing
+    assert.strictEqual(c.window.eval("Music.debug().optedOut"), true, "out before it starts");
+
+    c.socketHandlers["game-state"](withTrack);       // somebody starts a track
+    assert.strictEqual(doc.getElementById("music-card").style.display, "none",
+      "it never appears for them");
+    assert.deepStrictEqual(c.emitted.filter(e => e.ev === "music-set"), [],
+      "and they interfered with nobody");
+    assert.deepStrictEqual(c.errors, []);
   });
 });
 

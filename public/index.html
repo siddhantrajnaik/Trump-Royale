@@ -100,11 +100,6 @@
             <button id="music-leave" class="mini" type="button" title="Drop out of the music - just for me">✕</button>
           </div>
           <div id="music-note"></div>
-          <!-- Shown instead of the player to someone who has dropped out. -->
-          <div id="music-out" style="display:none">
-            <span>Music is off for you</span>
-            <button id="music-rejoin" type="button">Join back</button>
-          </div>
         </div>
       </div>
 
@@ -141,6 +136,12 @@
           <p id="music-error" class="error"></p>
           <button id="music-set" class="btn primary">Play for everyone</button>
           <button id="music-stop" class="btn">Stop the music</button>
+          <!-- Your own choice, separate from the room's. Always here, whether or
+               not anything is playing, so you can opt out before it starts. -->
+          <div id="music-me">
+            <span id="music-me-status"></span>
+            <button id="music-me-btn" class="btn">Leave the music</button>
+          </div>
           <button id="music-close" class="btn">Close</button>
         </div>
       </div>
