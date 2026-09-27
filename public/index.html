@@ -95,12 +95,18 @@
         <div id="connection-banner" style="display:none"></div>
 
         <!-- Shown instead of the player to someone who left while others listen. -->
-        <button id="music-chip" type="button" style="display:none">🎧 <span id="music-chip-count"></span> · Join</button>
+        <button id="music-chip" type="button" style="display:none">
+          <span class="chip-main">🎧 <span id="music-chip-count"></span> · Join</span>
+          <span id="music-chip-title" class="now-playing"></span>
+        </button>
 
         <!-- Shared YouTube player. Compact on phones and small tablets. -->
         <div id="music-card" style="display:none">
           <div id="yt-player-wrap"><div id="yt-player"></div>
-            <button id="music-join" type="button">▶ Join the music</button>
+            <button id="music-join" type="button">
+              <span>▶ Join the music</span>
+              <span id="music-join-title" class="now-playing"></span>
+            </button>
           </div>
           <div id="music-controls">
             <button id="music-playpause" class="mini" type="button" title="Play / pause for everyone">▶</button>

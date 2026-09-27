@@ -472,6 +472,46 @@ test("client: opting out up front keeps a later track off your table", async () 
   });
 });
 
+// People who haven't joined see neither the video nor YouTube's own title, so
+// the name is written on the Join overlay and on the chip. It comes from the
+// uploader, so it must go in as text, never as HTML.
+test("client: people who haven't joined can see what is playing", async () => {
+  const room = { music: MusicServer.emptyMusic(), musicEnabled: true };
+  MusicServer.setTrack(room, "dQw4w9WgXcQ", "p1", Date.now());
+  const state = () => {
+    const s = engineState(4, "ffa", "playing");
+    s.music = MusicServer.payload(room, Date.now());
+    return s;
+  };
+
+  // Before YouTube answers: no label rather than an empty one.
+  withClient(c => {
+    c.socketHandlers["game-state"](state());
+    assert.strictEqual(c.window.document.getElementById("music-join-title").style.display, "none");
+  });
+
+  room.music.title = "Song <b>bold</b> & more";
+  withClient(c => {
+    c.socketHandlers["game-state"](state());
+    const doc = c.window.document;
+    const label = doc.getElementById("music-join-title");
+    assert.strictEqual(label.textContent, "♪ Song <b>bold</b> & more", "on the Join overlay, as literal text");
+    assert.strictEqual(label.querySelector("b"), null, "no markup was injected");
+    assert.notStrictEqual(label.style.display, "none");
+  });
+
+  return withClient(async c => {
+    await wired(c);
+    c.socketHandlers["game-state"](state());
+    c.window.document.getElementById("music-leave").click();
+    const chip = c.window.document.getElementById("music-chip");
+    assert.strictEqual(chip.style.display, "flex", "left, so the chip shows");
+    assert.strictEqual(c.window.document.getElementById("music-chip-title").textContent,
+      "♪ Song <b>bold</b> & more", "and says what is playing");
+    assert.deepStrictEqual(c.errors, []);
+  });
+});
+
 test("client: music state drives the player card", () => {
   const room = { music: MusicServer.emptyMusic(), musicEnabled: true };
   MusicServer.setTrack(room, "dQw4w9WgXcQ", "p0", Date.now());

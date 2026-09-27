@@ -1,10 +1,10 @@
-# Trump Card Royal — Handover, v1.0.6
+# Trump Card Royal — Handover, v1.0.7
 
 A real-time multiplayer trick-taking card game for 4, 5 or 6 players. Browser-based,
 installable as an app, no database, deployable free.
 
 - **Repository:** https://github.com/siddhantrajnaik/Trump-Royale
-- **Version:** 1.0.6 (git tag `v1.0.6`)
+- **Version:** 1.0.7 (git tag `v1.0.7`)
 - **Stack:** Node.js + Express + Socket.IO on the server; plain HTML/CSS/JavaScript
   on the client. No framework, no build step, no database.
 - **Runtime dependencies:** exactly two — `express` and `socket.io`.
@@ -19,7 +19,7 @@ npm start            # http://localhost:3000
 ```
 
 ```bash
-npm test             # 61 tests, under 10 seconds
+npm test             # 64 tests, under 10 seconds
 npm run dev          # same as start, restarts on file change
 ```
 
@@ -197,18 +197,18 @@ their own hand and nobody else's.
 
 | File | Lines | What it is |
 |---|---|---|
-| `server/index.js` | 303 | HTTP, static files, socket events, room lifecycle |
+| `server/index.js` | 313 | HTTP, static files, socket events, room lifecycle |
 | `server/game/engine.js` | 623 | **All game rules.** Deck, dealing, calls, tricks, scoring |
-| `server/music.js` | 119 | Shared-music state and the playback clock |
-| `public/index.html` | 191 | Every screen and overlay |
-| `public/app.js` | 874 | Rendering, input, screen flow |
-| `public/style.css` | 235 | All styling |
+| `server/music.js` | 144 | Shared-music state and the playback clock |
+| `public/index.html` | 197 | Every screen and overlay |
+| `public/app.js` | 885 | Rendering, input, screen flow |
+| `public/style.css` | 244 | All styling |
 | `public/sound.js` | 152 | Synthesised sound effects |
 | `public/music.js` | 479 | YouTube player and drift correction |
 | `public/sw.js` | 102 | Service worker |
 | `public/manifest.webmanifest` | 34 | PWA manifest |
 | `public/icons/*.png` | — | App icons, generated (§7.3) |
-| `server/test/*.js` | 1662 | 61 tests |
+| `server/test/*.js` | 1742 | 64 tests |
 | `render.yaml` | 10 | Render deployment config |
 
 ### 3.2 The entity abstraction
@@ -371,6 +371,18 @@ on the video to start the music*. The tap arrives as `onStateChange → PLAYING`
 clears `needsTap` and counts as joining. Locking an iPhone and coming back lands in the
 same state and recovers the same way, with one tap.
 
+**What's playing.** People who haven't joined see neither the video nor YouTube's own
+title, so the song name is written small and dim under **▶ Join the music** and on the
+chip (`♪ lofi hip hop radio…`, one line, cut with "…", full name on hover). Their browser
+never loads the YouTube player, so it can't ask for the title. Instead, when a track is set,
+the server looks it up once through YouTube's public oEmbed endpoint (`fetchTitle()` in
+`server/music.js`, no API key) and broadcasts it as `music.title`, measured at about half a
+second after the track is set. It is best effort: a
+4-second timeout, and any failure — offline, private video, bad answer — simply means no
+label. The title is only applied if that same track is still playing when YouTube
+answers. Titles are capped at 120 characters and rendered with `textContent`, because
+they are whatever the uploader typed.
+
 **Who is listening.** A 🎧 appears before the name of every player whose music has
 actually started — joined, not dropped out, and not blocked waiting for a tap
 (`listening = started && !optedOut && !needsTap`). The card shows `🎧 3 of 4 listening`, and the 🎵
@@ -426,7 +438,7 @@ the deployed URL in Chrome once and confirm the install icon appears.**
 ## 5. Testing
 
 ```bash
-npm test        # 61 tests
+npm test        # 64 tests
 ```
 
 | Group | Count | Covers |
@@ -434,9 +446,9 @@ npm test        # 61 tests
 | Joker | 8 | The classification rules in §2.6, across all modes |
 | Rules | 10 | Decks, round shape, scoring, soaks, reconnect, end-game vote, colour card, seat fairness |
 | Service worker | 7 | Transport never intercepted, network-first, offline fallback, cold start |
-| Music | 11 | Link parsing, playback clock, clock-skew, room flag, who is listening |
+| Music | 13 | Link parsing, playback clock, clock-skew, room flag, who is listening, song title |
 | Titles | 5 | Best/worst pick, teammates share it, ties, carry-over, none before round 1 |
-| Client | 20 | **The browser code actually starts and can draw itself** |
+| Client | 21 | **The browser code actually starts and can draw itself** |
 
 **Why the client tests exist.** Every other test runs server-side. The suite once
 reported 33/33 while the client was throwing on load and half the app never wired up —

@@ -166,3 +166,43 @@ test('music: who is listening rides along with the state', () => {
   Music.setTrack(room, 'dQw4w9WgXcQ', 'p1', 4000);
   assert.deepStrictEqual(Music.payload(room, 5000).listeners, ['p2'], 'survives a track change');
 });
+
+// The title is fetched from YouTube, so everything about that call is outside
+// our control. It must hand back a clean name or nothing - never throw.
+test('music: the song title is looked up, and any failure is just no title', async () => {
+  const ok = (body) => async () => ({ ok: true, json: async () => body });
+  let asked = null;
+  const spy = async (url) => { asked = url; return { ok: true, json: async () => ({ title: '  Lofi beats  ' }) }; };
+
+  assert.strictEqual(await Music.fetchTitle('jfKfPfyJRdk', spy), 'Lofi beats', 'trimmed');
+  assert.ok(asked.startsWith('https://www.youtube.com/oembed?'), 'asks YouTube oEmbed: ' + asked);
+  assert.ok(asked.includes(encodeURIComponent('watch?v=jfKfPfyJRdk')), 'for that video');
+
+  const long = 'x'.repeat(300);
+  const capped = await Music.fetchTitle('jfKfPfyJRdk', ok({ title: long }));
+  assert.strictEqual(capped.length, 120, 'capped so a silly title cannot flood the table');
+  assert.ok(capped.endsWith('…'));
+
+  assert.strictEqual(await Music.fetchTitle('jfKfPfyJRdk', async () => ({ ok: false })), null, 'HTTP error');
+  assert.strictEqual(await Music.fetchTitle('jfKfPfyJRdk', async () => { throw new Error('offline'); }), null, 'network error');
+  assert.strictEqual(await Music.fetchTitle('jfKfPfyJRdk', ok({})), null, 'no title in the answer');
+  assert.strictEqual(await Music.fetchTitle('jfKfPfyJRdk', ok({ title: 42 })), null, 'not a string');
+  assert.strictEqual(await Music.fetchTitle('jfKfPfyJRdk', async () => ({ ok: true, json: async () => { throw new Error('bad json'); } })), null, 'bad JSON');
+
+  let called = false;
+  assert.strictEqual(await Music.fetchTitle('not an id', async () => { called = true; }), null, 'bad id');
+  assert.strictEqual(called, false, 'a bad id never reaches the network');
+});
+
+test('music: a new track starts with no title, and stopping clears it', () => {
+  const room = { music: Music.emptyMusic(), musicEnabled: true };
+  const first = Music.setTrack(room, 'jfKfPfyJRdk', 'p0', 1000);
+  first.title = 'Lofi beats';
+  assert.strictEqual(Music.payload(room, 1000).title, 'Lofi beats', 'rides along with the state');
+
+  Music.setTrack(room, 'dQw4w9WgXcQ', 'p1', 2000);
+  assert.strictEqual(Music.payload(room, 2000).title, null, "the old song's name does not stick to the new one");
+
+  Music.control(room, 'stop', null, 3000);
+  assert.strictEqual(Music.payload(room, 3000).title, null);
+});

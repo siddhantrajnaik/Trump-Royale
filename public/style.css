@@ -187,6 +187,14 @@ td.negative{color:var(--red)}
   padding:6px 12px;font-size:.75rem;font-weight:600;cursor:pointer}
 #music-chip:hover{background:rgba(0,0,0,.7)}
 
+/* What's playing, for people who haven't joined. Small, dim and one line, so
+   it informs without competing with the game. */
+#music-chip{flex-direction:column;align-items:flex-start;gap:1px}
+#music-join{flex-direction:column;gap:3px;padding:0 8px}
+.now-playing{display:block;max-width:180px;font-size:.62rem;font-weight:400;color:var(--text-dim);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#music-join .now-playing{max-width:100%;color:rgba(255,255,255,.7)}
+
 /* Phones and small tablets: a compact tile in the bottom-left corner of the
    table. Measured clear of every seat, the trick and Next Trick at 360-390px
    wide, except 6-player on screens under ~600px tall (iPhone SE with Safari's
@@ -207,6 +215,7 @@ td.negative{color:var(--red)}
   #music-note,#music-listeners{font-size:.58rem;text-align:left;line-height:1.25}
   #music-note{margin-top:3px}
   #music-chip{top:auto;bottom:8px;left:6px;font-size:.7rem;padding:5px 10px}
+  .now-playing{max-width:150px;font-size:.56rem}
 }
 
 .last-trick-banner{position:absolute;bottom:8px;right:8px;font-size:.7rem;color:var(--text-dim);background:rgba(0,0,0,0.3);padding:4px 8px;border-radius:6px;cursor:pointer}

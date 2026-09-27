@@ -251,9 +251,19 @@ io.on('connection', (socket) => {
     if (room.musicEnabled === false) return ack?.({ error: 'Music is off for this room' });
     const videoId = Music.parseVideoId(url);
     if (!videoId) return ack?.({ error: 'That does not look like a YouTube link' });
-    Music.setTrack(room, videoId, currentPlayerId, Date.now());
+    const track = Music.setTrack(room, videoId, currentPlayerId, Date.now());
+    const roomCode = currentRoom;
     ack?.({ ok: true, videoId });
-    broadcastState(currentRoom);
+    broadcastState(roomCode);
+
+    // The name arrives a moment later. Only apply it if that same track is
+    // still the one playing - someone may have changed or stopped it meanwhile.
+    Music.fetchTitle(videoId).then((title) => {
+      const r = rooms.get(roomCode);
+      if (!title || !r || r.music !== track) return;
+      track.title = title;
+      broadcastState(roomCode);
+    });
   });
 
   socket.on('music-control', ({ action, seconds }, ack) => {

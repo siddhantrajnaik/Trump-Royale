@@ -522,6 +522,17 @@ function renderMusicListeners() {
   card.textContent = `🎧 ${on.length} of ${players.length} listening`;
   const chipCount = $('#music-chip-count');
   if (chipCount) chipCount.textContent = on.length ? `${on.length} listening` : 'Music on';
+
+  // What's playing, for people who haven't joined: they see neither the video
+  // nor YouTube's own title. textContent, never innerHTML - a video title is
+  // whatever its uploader typed.
+  const nowPlaying = m.title ? '♪ ' + m.title : '';
+  for (const el of [$('#music-chip-title'), $('#music-join-title')]) {
+    if (!el) continue;
+    el.textContent = nowPlaying;
+    el.title = m.title || '';          // full name on hover when it is cut short
+    el.style.display = nowPlaying ? '' : 'none';
+  }
   who.innerHTML =
     `<span class="val">🎧 Listening:</span> ${on.length ? on.map(p => esc(p.name)).join(', ') : 'nobody yet'}` +
     (off.length ? `<br><span class="val">🔇 Not listening:</span> ${off.map(p => esc(p.name)).join(', ')}` : '');

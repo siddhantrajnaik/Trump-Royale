@@ -41,7 +41,31 @@ function parseVideoId(input) {
 }
 
 function emptyMusic() {
-  return { videoId: null, playing: false, offsetSec: 0, startedAtMs: 0, setBy: null };
+  return { videoId: null, playing: false, offsetSec: 0, startedAtMs: 0, setBy: null, title: null };
+}
+
+// The song's name, so people who haven't joined can see what is playing. They
+// never load the YouTube player, so their browser cannot ask it - the server
+// looks it up once through YouTube's public oEmbed endpoint (no API key) and
+// every client gets it with the state. Best effort: any failure is just no
+// title, never an error, and a slow YouTube cannot hold anything up.
+const TITLE_TIMEOUT_MS = 4000;
+const TITLE_MAX = 120;
+
+async function fetchTitle(videoId, fetchImpl = globalThis.fetch) {
+  if (!YT_ID.test(videoId || '') || typeof fetchImpl !== 'function') return null;
+  const url = 'https://www.youtube.com/oembed?format=json&url='
+    + encodeURIComponent('https://www.youtube.com/watch?v=' + videoId);
+  try {
+    const res = await fetchImpl(url, { signal: AbortSignal.timeout(TITLE_TIMEOUT_MS) });
+    if (!res || !res.ok) return null;
+    const data = await res.json();
+    const title = typeof data.title === 'string' ? data.title.trim() : '';
+    if (!title) return null;
+    return title.length > TITLE_MAX ? title.slice(0, TITLE_MAX - 1) + '…' : title;
+  } catch (e) {
+    return null;
+  }
 }
 
 // Where the track stands right now, given the logical clock.
@@ -58,6 +82,7 @@ function setTrack(room, videoId, playerId, now) {
     offsetSec: 0,
     startedAtMs: now,
     setBy: playerId,
+    title: null,   // filled in by fetchTitle once YouTube answers
   };
   return room.music;
 }
@@ -116,4 +141,4 @@ function payload(room, now) {
   };
 }
 
-module.exports = { parseVideoId, emptyMusic, positionAt, setTrack, control, setListening, payload };
+module.exports = { parseVideoId, emptyMusic, positionAt, setTrack, control, setListening, fetchTitle, payload };
