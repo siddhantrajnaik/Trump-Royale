@@ -266,10 +266,23 @@ io.on('connection', (socket) => {
     broadcastState(currentRoom);
   });
 
+  socket.on('music-presence', ({ listening } = {}, ack) => {
+    const room = rooms.get(currentRoom);
+    if (!room) return ack?.({ error: 'No room' });
+    if (room.musicEnabled === false) return ack?.({ error: 'Music is off for this room' });
+    if (typeof listening !== 'boolean') return ack?.({ error: 'Bad presence' });
+    Music.setListening(room, currentPlayerId, listening);
+    ack?.({ ok: true });
+    broadcastState(currentRoom);
+  });
+
   socket.on('disconnect', () => {
     if (!currentRoom || !currentPlayerId) return;
     const room = rooms.get(currentRoom);
     if (!room) return;
+    // Gone is not listening. A player who comes back re-announces themselves,
+    // possibly from a phone this time, where they can't hear it.
+    Music.setListening(room, currentPlayerId, false);
     room.engine.removePlayer(currentPlayerId);
     delete room.socketMap[socket.id];
     delete room.playerSockets[currentPlayerId];

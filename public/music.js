@@ -191,6 +191,7 @@ const Music = (() => {
     const playBtn = $m('music-playpause');
     const note = $m('music-note');
     renderMe();
+    reportPresence();
     if (!joinBtn) return;
     if (optedOut) return;
 
@@ -224,9 +225,38 @@ const Music = (() => {
     else localStorage.removeItem('tcr_music_out');
     apply();
     renderMe();
+    reportPresence();
   }
 
-  function onState(music) {
+  // ---- presence ------------------------------------------------------------
+  // Tell the room whether this player has their music on, so a 🎧 shows by
+  // their name. Rather than firing on each click, compare what we are doing
+  // with what the server last said and correct it when they differ - which
+  // also heals itself after a reconnect or a server restart wiped the list.
+  let lastMusic = null;
+  let myId = null;
+  let presenceSent = null;   // what we last told the server, until a broadcast confirms it
+
+  const listeningNow = () => IS_DESKTOP && started && !optedOut;
+
+  function reportPresence() {
+    if (!lastMusic || lastMusic.enabled === false || !myId) return;
+    const serverThinks = (lastMusic.listeners || []).includes(myId);
+    const actual = listeningNow();
+    if (serverThinks === actual) { presenceSent = null; return; }
+    // Already said so and the broadcast is on its way. Clearing this on the ack
+    // instead would re-send in the gap between the ack and the broadcast.
+    if (presenceSent === actual) return;
+    presenceSent = actual;
+    socket.emit('music-presence', { listening: actual }, (res) => {
+      if (!res || res.error) presenceSent = null;   // refused: free to try again
+    });
+  }
+
+  function onState(music, playerId) {
+    lastMusic = music || null;
+    if (playerId) myId = playerId;
+    reportPresence();   // before the desktop check: a phone must be able to say "not me"
     if (!IS_DESKTOP) return;
     const openBtn = $m('music-toggle-btn');
     if (music && music.enabled === false) {
@@ -352,6 +382,7 @@ const Music = (() => {
         lastNudge = 0;
         started = true;
         sync();
+        reportPresence();
       });
     }
 
@@ -387,6 +418,7 @@ const Music = (() => {
       skewMs,
       started,
       optedOut,
+      listening: listeningNow(),
       videoId: current && current.videoId,
       playing: current && current.playing,
       target: current ? targetSeconds(current) : null,

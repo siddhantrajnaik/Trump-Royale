@@ -322,6 +322,73 @@ test("client: round titles land on the right names, and vanish when off", () => 
   });
 });
 
+test("client: headphones show who has joined the music", () => {
+  const room = { music: MusicServer.emptyMusic(), musicEnabled: true };
+  MusicServer.setTrack(room, "dQw4w9WgXcQ", "p0", Date.now());
+  MusicServer.setListening(room, "p0", true);
+  MusicServer.setListening(room, "p2", true);
+  const state = engineState(4, "ffa", "playing");
+  state.music = MusicServer.payload(room, Date.now());
+
+  withClient(c => {
+    c.socketHandlers["game-state"](state);
+    const doc = c.window.document;
+    const seatHas = (name) => {
+      const s = [...doc.querySelectorAll("#seats .seat-name")].find(el => el.textContent.includes(name));
+      return !!(s && s.querySelector(".listening"));
+    };
+    assert.ok(seatHas("Charlie"), "Charlie joined: 🎧");
+    assert.ok(!seatHas("Bob"), "Bob did not");
+    assert.ok(!seatHas("Diana"), "nor Diana");
+    assert.ok(doc.querySelector("#your-info .listening"), "you joined, and see it on your own name");
+    assert.strictEqual(doc.getElementById("music-listeners").textContent, "🎧 2 of 4 listening");
+    const who = doc.getElementById("music-who").textContent;
+    assert.ok(/Not listening:.*Bob.*Diana/.test(who), "the overlay names who can't hear: " + who);
+    assert.deepStrictEqual(c.errors, []);
+  });
+
+  // No track, no headphones: listening to nothing means nothing.
+  const quiet = engineState(4, "ffa", "playing");
+  const q = { music: MusicServer.emptyMusic(), musicEnabled: true };
+  MusicServer.setListening(q, "p2", true);
+  quiet.music = MusicServer.payload(q, Date.now());
+  withClient(c => {
+    c.socketHandlers["game-state"](quiet);
+    assert.strictEqual(c.window.document.querySelectorAll(".listening").length, 0);
+  });
+});
+
+test("client: joining and leaving tell the room, and nothing else", async () => {
+  const room = { music: MusicServer.emptyMusic(), musicEnabled: true };
+  MusicServer.setTrack(room, "dQw4w9WgXcQ", "p1", Date.now());
+  const state = () => {
+    const s = engineState(4, "ffa", "playing");
+    s.music = MusicServer.payload(room, Date.now());
+    return s;
+  };
+
+  return withClient(async c => {
+    const doc = c.window.document;
+    const presence = () => c.emitted.filter(e => e.ev === "music-presence").map(e => e.data.listening);
+    await wired(c);
+    c.window.localStorage.removeItem("tcr_music_out");
+    c.socketHandlers["game-state"](state());
+    assert.deepStrictEqual(presence(), [], "not joined yet, and the server agrees: silence");
+
+    doc.getElementById("music-join").click();
+    assert.deepStrictEqual(presence(), [true], "joining is announced");
+
+    MusicServer.setListening(room, "p0", true);            // the server takes note and rebroadcasts
+    c.socketHandlers["game-state"](state());
+    assert.deepStrictEqual(presence(), [true], "and not repeated once the server agrees");
+
+    doc.getElementById("music-leave").click();
+    assert.deepStrictEqual(presence(), [true, false], "leaving is announced, once");
+    assert.deepStrictEqual(c.emitted.filter(e => e.ev === "music-control"), [],
+      "and still never pauses anyone else");
+  });
+});
+
 // Dropping out has to be strictly personal. If it ever reached the server it
 // would pause the track for the whole table, which is the opposite of the point.
 test("client: a player can drop out of the music on their own", async () => {

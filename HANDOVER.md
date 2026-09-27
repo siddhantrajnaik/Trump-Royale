@@ -1,10 +1,10 @@
-# Trump Card Royal — Handover, v1.0.4
+# Trump Card Royal — Handover, v1.0.5
 
 A real-time multiplayer trick-taking card game for 4, 5 or 6 players. Browser-based,
 installable as an app, no database, deployable free.
 
 - **Repository:** https://github.com/siddhantrajnaik/Trump-Royale
-- **Version:** 1.0.4 (git tag `v1.0.4`)
+- **Version:** 1.0.5 (git tag `v1.0.5`)
 - **Stack:** Node.js + Express + Socket.IO on the server; plain HTML/CSS/JavaScript
   on the client. No framework, no build step, no database.
 - **Runtime dependencies:** exactly two — `express` and `socket.io`.
@@ -19,7 +19,7 @@ npm start            # http://localhost:3000
 ```
 
 ```bash
-npm test             # 51 tests, under 10 seconds
+npm test             # 54 tests, under 10 seconds
 npm run dev          # same as start, restarts on file change
 ```
 
@@ -197,18 +197,18 @@ their own hand and nobody else's.
 
 | File | Lines | What it is |
 |---|---|---|
-| `server/index.js` | 290 | HTTP, static files, socket events, room lifecycle |
+| `server/index.js` | 303 | HTTP, static files, socket events, room lifecycle |
 | `server/game/engine.js` | 623 | **All game rules.** Deck, dealing, calls, tricks, scoring |
-| `server/music.js` | 103 | Shared-music state and the playback clock |
-| `public/index.html` | 186 | Every screen and overlay |
-| `public/app.js` | 842 | Rendering, input, screen flow |
-| `public/style.css` | 202 | All styling |
+| `server/music.js` | 119 | Shared-music state and the playback clock |
+| `public/index.html` | 188 | Every screen and overlay |
+| `public/app.js` | 872 | Rendering, input, screen flow |
+| `public/style.css` | 205 | All styling |
 | `public/sound.js` | 152 | Synthesised sound effects |
-| `public/music.js` | 396 | YouTube player and drift correction |
+| `public/music.js` | 428 | YouTube player and drift correction |
 | `public/sw.js` | 102 | Service worker |
 | `public/manifest.webmanifest` | 34 | PWA manifest |
 | `public/icons/*.png` | — | App icons, generated (§7.3) |
-| `server/test/*.js` | 1340 | 51 tests |
+| `server/test/*.js` | 1427 | 54 tests |
 | `render.yaml` | 10 | Render deployment config |
 
 ### 3.2 The entity abstraction
@@ -236,6 +236,7 @@ Client → server (all take an acknowledgement callback):
 | `music-time` | — | Returns `{serverNow}` for clock sync |
 | `music-set` | `{url}` | |
 | `music-control` | `{action, seconds}` | `play` `pause` `seek` `stop` |
+| `music-presence` | `{listening}` | Boolean: this player has the music on. Drives the 🎧 (§4.4) |
 
 Server → client: **only `game-state`**, a full personalised snapshot. There are no
 incremental updates, which keeps the client simple and impossible to desynchronise.
@@ -351,7 +352,27 @@ Two regression tests cover this. One asserts no socket traffic escapes either bu
 it fails if a future edit turns leaving into a room-wide pause. The other opts out with
 nothing playing and then pushes a track through, asserting the card never appears.
 
-Diagnose with `Music.debug()` — `optedOut` is in there.
+**Who is listening.** A 🎧 appears before the name of every player who has switched the
+music on — joined, and not dropped out. The card shows `🎧 3 of 4 listening`, and the 🎵
+overlay names who is and isn't, since the people who can't hear are the ones who need to
+act. Nothing shows while no track is set.
+
+Each client reports its own state with `music-presence`, but not per click: on every
+broadcast it compares what it is actually doing with the server's `listeners` list and
+corrects the server when they differ. So a reconnect, or a server restart that wiped the
+list, heals itself. It remembers what it sent until a broadcast confirms it — clearing
+on the ack instead double-sent in the gap before the broadcast. Disconnecting drops you
+from the list; phones never report listening, because they can't play it.
+
+**It means "switched on", not "can hear".** The browser has no way to know where the
+sound ends up. The classic case: a Bluetooth headset whose mic is in use by a video call
+drops into hands-free mode, and Windows keeps sending the browser's audio to the silent
+stereo device — that player shows 🎧 and hears nothing. Fix: use the laptop's built-in
+mic for the call, or set the browser's output to the Hands-Free device in Windows' volume
+mixer. There is no in-game speaker picker because browsers do not let a page redirect a
+YouTube iframe's audio.
+
+Diagnose with `Music.debug()` — `optedOut` and `listening` are in there.
 
 **Limits that cannot be fixed in code:** ads interrupt only the person watching them ·
 iOS stops playback when the screen locks · live streams won't embed (the card says so)
@@ -381,7 +402,7 @@ the deployed URL in Chrome once and confirm the install icon appears.**
 ## 5. Testing
 
 ```bash
-npm test        # 51 tests
+npm test        # 54 tests
 ```
 
 | Group | Count | Covers |
@@ -389,9 +410,9 @@ npm test        # 51 tests
 | Joker | 8 | The classification rules in §2.6, across all modes |
 | Rules | 10 | Decks, round shape, scoring, soaks, reconnect, end-game vote, colour card, seat fairness |
 | Service worker | 7 | Transport never intercepted, network-first, offline fallback, cold start |
-| Music | 10 | Link parsing, playback clock, clock-skew, room flag |
+| Music | 11 | Link parsing, playback clock, clock-skew, room flag, who is listening |
 | Titles | 5 | Best/worst pick, teammates share it, ties, carry-over, none before round 1 |
-| Client | 11 | **The browser code actually starts and can draw itself** |
+| Client | 13 | **The browser code actually starts and can draw itself** |
 
 **Why the client tests exist.** Every other test runs server-side. The suite once
 reported 33/33 while the client was throwing on load and half the app never wired up —

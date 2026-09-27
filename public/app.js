@@ -329,7 +329,7 @@ socket.on('game-state', (s) => {
   state = s;
   render();
   playTransitionSounds(prev, s);
-  if (typeof Music !== 'undefined') Music.onState(s.music);
+  if (typeof Music !== 'undefined') Music.onState(s.music, s.you && s.you.id);
 });
 
 function render() {
@@ -381,6 +381,7 @@ function renderGame() {
   renderRoundEnd();
   renderGameOver();
   renderScoreboard();
+  renderMusicListeners();
   titlesFresh = false;   // partial redraws after this (card taps) must not replay it
 }
 
@@ -393,7 +394,7 @@ function renderYourInfo() {
   const tricks = state.tricksWon[myEntity] ?? 0;
   const isMyTurn = state.currentPlayerSeat === state.you.seat && state.phase === 'playing';
 
-  let parts = [`<span>${esc(me?.name || 'You')}</span>`];
+  let parts = [`<span>${isListening(state.you.id) ? HEADPHONES : ''}${esc(me?.name || 'You')}</span>`];
   // state.you.id, not myPlayerId: it arrives with every snapshot, so it is
   // right even before the create/join handshake has set the local copy.
   const mine = titleBanner(state.you.id, 'span');
@@ -475,7 +476,7 @@ function renderSeats() {
 
     div.innerHTML = `
       ${titleBanner(p.id)}
-      <div class="${nameClass}">${esc(p.name)}${partnerMark}</div>
+      <div class="${nameClass}">${isListening(p.id) ? HEADPHONES : ''}${esc(p.name)}${partnerMark}</div>
       <div class="seat-cards">${p.connected ? '' : 'offline · '}${p.cardsRemaining} cards${p.isDealer ? ' · D' : ''}${p.isColorPicker ? ' · CP' : ''}</div>
       ${callText ? `<div class="seat-call">${callText}</div>` : ''}
       ${tricks !== '' && state.phase === 'playing' ? `<div class="seat-tricks">Tricks: ${tricks}</div>` : ''}
@@ -493,6 +494,35 @@ function titleBanner(playerId, tag = 'div') {
   if (t.rajaBabu.includes(playerId)) return `<${tag} class="title-banner raja${fresh}">👑 Raja Babu</${tag}>`;
   if (t.maichia.includes(playerId)) return `<${tag} class="title-banner maichia${fresh}">🫠 Maichia</${tag}>`;
   return '';
+}
+
+// Has this player switched the shared music on? Only meaningful while a track
+// is set, so nothing shows before anyone plays something.
+function isListening(playerId) {
+  const m = state && state.music;
+  return !!(m && m.enabled !== false && m.videoId && (m.listeners || []).includes(playerId));
+}
+const HEADPHONES = '<span class="listening" title="Listening to the music">🎧</span>';
+
+// Who can hear it, on the music card and in the 🎵 overlay. The overlay names
+// the people who can't, because that is who needs to do something.
+function renderMusicListeners() {
+  const card = $('#music-listeners');
+  const who = $('#music-who');
+  if (!card || !who) return;
+  const m = state.music;
+  if (!m || m.enabled === false || !m.videoId) {
+    card.textContent = '';
+    who.textContent = '';
+    return;
+  }
+  const players = state.players.filter(p => p.connected);
+  const on = players.filter(p => isListening(p.id));
+  const off = players.filter(p => !isListening(p.id));
+  card.textContent = `🎧 ${on.length} of ${players.length} listening`;
+  who.innerHTML =
+    `<span class="val">🎧 Listening:</span> ${on.length ? on.map(p => esc(p.name)).join(', ') : 'nobody yet'}` +
+    (off.length ? `<br><span class="val">🔇 Not listening:</span> ${off.map(p => esc(p.name)).join(', ')}` : '');
 }
 
 // True for exactly one render: the one where the titles changed.

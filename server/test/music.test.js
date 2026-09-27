@@ -146,3 +146,23 @@ test('music: the room flag rides along with the state', () => {
   // existed still behaves as it did.
   assert.strictEqual(Music.payload(legacy, 1000).enabled, true, 'absent means on');
 });
+
+test('music: who is listening rides along with the state', () => {
+  const room = { music: Music.emptyMusic(), musicEnabled: true };
+  assert.deepStrictEqual(Music.payload(room, 1000).listeners, [], 'nobody before anyone joins');
+
+  Music.setListening(room, 'p0', true);
+  Music.setListening(room, 'p2', true);
+  Music.setListening(room, 'p2', true);                    // repeating is harmless
+  assert.deepStrictEqual(Music.payload(room, 1000).listeners.sort(), ['p0', 'p2']);
+
+  Music.setListening(room, 'p0', false);
+  assert.deepStrictEqual(Music.payload(room, 1000).listeners, ['p2'], 'leaving drops you');
+
+  // Presence is about the person, not the track: stopping and starting a new
+  // song must not wipe it, or everyone would have to re-announce.
+  Music.setTrack(room, 'dQw4w9WgXcQ', 'p1', 2000);
+  Music.control(room, 'stop', null, 3000);
+  Music.setTrack(room, 'dQw4w9WgXcQ', 'p1', 4000);
+  assert.deepStrictEqual(Music.payload(room, 5000).listeners, ['p2'], 'survives a track change');
+});

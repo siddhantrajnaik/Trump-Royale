@@ -93,11 +93,27 @@ function control(room, action, seconds, now) {
   return m;
 }
 
+// Who has their music on - joined, and not dropped out. Presence only: it is
+// shown next to names so the table can see who can't hear, and never touches
+// playback. It is each client's own report, so it means "has it switched on",
+// not "can definitely hear it" - a Bluetooth headset stuck in hands-free mode
+// still reports as listening.
+function setListening(room, playerId, listening) {
+  if (!room.musicListeners) room.musicListeners = new Set();
+  if (listening) room.musicListeners.add(playerId);
+  else room.musicListeners.delete(playerId);
+}
+
 // Clients need the server's clock to convert the logical clock into a position,
 // so it rides along with the state.
 function payload(room, now) {
   const m = room.music || emptyMusic();
-  return { ...m, serverNow: now, enabled: room.musicEnabled !== false };
+  return {
+    ...m,
+    serverNow: now,
+    enabled: room.musicEnabled !== false,
+    listeners: room.musicListeners ? [...room.musicListeners] : [],
+  };
 }
 
-module.exports = { parseVideoId, emptyMusic, positionAt, setTrack, control, payload };
+module.exports = { parseVideoId, emptyMusic, positionAt, setTrack, control, setListening, payload };

@@ -170,6 +170,9 @@ td.negative{color:var(--red)}
 /* Your own in-or-out choice, kept visually apart from the room-wide buttons
    above it so the two are never confused. */
 #music-me{border-top:1px solid rgba(255,255,255,.12);margin-top:10px;padding-top:10px}
+#music-listeners{font-size:.65rem;color:var(--text-dim);text-align:center;margin-top:2px}
+#music-who{font-size:.72rem;color:var(--text);margin:0 0 8px;line-height:1.5}
+.seat-name .listening,#your-info .listening{margin-right:4px;font-size:.8em}
 #music-me-status{display:block;font-size:.72rem;color:var(--text-dim);margin-bottom:6px}
 /* Dropped out: the corner note stays reachable but stops asking for attention. */
 #music-toggle-btn.off{opacity:.4}
