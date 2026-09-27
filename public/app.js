@@ -520,6 +520,8 @@ function renderMusicListeners() {
   const on = players.filter(p => isListening(p.id));
   const off = players.filter(p => !isListening(p.id));
   card.textContent = `🎧 ${on.length} of ${players.length} listening`;
+  const chipCount = $('#music-chip-count');
+  if (chipCount) chipCount.textContent = on.length ? `${on.length} listening` : 'Music on';
   who.innerHTML =
     `<span class="val">🎧 Listening:</span> ${on.length ? on.map(p => esc(p.name)).join(', ') : 'nobody yet'}` +
     (off.length ? `<br><span class="val">🔇 Not listening:</span> ${off.map(p => esc(p.name)).join(', ')}` : '');

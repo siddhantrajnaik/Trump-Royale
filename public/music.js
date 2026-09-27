@@ -9,16 +9,18 @@
 //
 // Two things are outside our control and worth knowing: an ad interrupts only
 // the person watching it, and iOS stops playback when the screen locks.
+//
+// Phones and tablets take part too. The catch is that browsers - iOS Safari
+// hardest of all - may refuse to start sound unless the tap lands on the video
+// itself, and a button of ours does not count. So instead of assuming our
+// playVideo() worked, we watch: if the track should be playing and ours still
+// isn't a moment later, we are blocked, and we ask for a tap on the video.
+// Locking an iPhone and coming back lands in exactly the same state.
 const Music = (() => {
-  // Desktop only. On a phone the layout has no room for a video, and iOS stops
-  // playback the moment the screen locks or you switch apps - which is most of
-  // a card game. Mobile players simply do not take part in the music.
-  const IS_DESKTOP = window.matchMedia("(hover: hover) and (pointer: fine)").matches
-    && window.innerWidth >= 820;
-
   const DRIFT_TOLERANCE_S = 1.5;   // below this, seeking is more disruptive than the drift
   const SYNC_INTERVAL_MS = 3000;
   const SETTLE_MS = 2500;          // ignore drift right after a seek or a state change
+  const BLOCKED_CHECK_MS = 1500;   // how long a started track may take before we call it blocked
 
   let player = null;
   let apiLoading = false;
@@ -33,6 +35,10 @@ const Music = (() => {
   // track keeps playing for everyone else. It is remembered because somebody who
   // does not want music now will not want it after the next reload either.
   let optedOut = localStorage.getItem('tcr_music_out') === '1';
+  // Joined, but the browser would not let our code start the sound: waiting for
+  // a tap on the video. Counts as not listening, so the 🎧 tells the truth.
+  let needsTap = false;
+  let stuckTicks = 0;
 
   function clampVolume(v) {
     const n = Number(v);
@@ -105,7 +111,18 @@ const Music = (() => {
           if (player && player.setVolume) player.setVolume(volume);
           render(); sync();
         },
-        onStateChange: () => { lastNudge = Date.now(); render(); },
+        onStateChange: (e) => {
+          lastNudge = Date.now();
+          // Playing - whether our code started it or a tap on the video did.
+          // On an iPhone the tap is the only thing allowed to, so it counts
+          // as joining.
+          if (e && e.data === YT.PlayerState.PLAYING) {
+            if (!started && !optedOut) started = true;
+            stuckTicks = 0;
+            needsTap = false;
+          }
+          render();
+        },
         onError: () => {
           const note = $m('music-note');
           if (note) note.textContent = 'That video will not play embedded. Try another link.';
@@ -124,12 +141,19 @@ const Music = (() => {
 
     if (!current.playing) {
       if (state === YT.PlayerState.PLAYING) player.pauseVideo();
+      stuckTicks = 0;
       return;
     }
     if (state !== YT.PlayerState.PLAYING) {
-      if (state !== YT.PlayerState.BUFFERING) player.playVideo();
+      if (state !== YT.PlayerState.BUFFERING) {
+        player.playVideo();
+        // Asked twice and still not playing: the browser is refusing us.
+        if (++stuckTicks >= 2 && !needsTap) { needsTap = true; render(); }
+      }
       return;                      // never chase position while buffering
     }
+    stuckTicks = 0;
+    if (needsTap) { needsTap = false; render(); }
     // An ad or a fresh seek reports a position that is not the track's, so let
     // things settle before judging drift.
     if (Date.now() - lastNudge < SETTLE_MS) return;
@@ -147,25 +171,31 @@ const Music = (() => {
   // Reconcile the DOM and the player with the room's music state.
   function apply() {
     const card = $m('music-card');
+    const chip = $m('music-chip');
     if (!card) return;
 
     if (!current || !current.videoId) {
       card.style.display = 'none';
+      if (chip) chip.style.display = 'none';
       loadedVideoId = null;
+      needsTap = false;
       if (player && player.stopVideo) { try { player.stopVideo(); } catch (e) {} }
       return;
     }
 
     if (optedOut) {
-      // Out means out: no video on their table at all, and the API is never
-      // loaded for them. Pause rather than stop a player they built before they
-      // left, so coming back only has to seek instead of rebuilding an iframe.
+      // No video on their table and the API never loaded for them - just a
+      // small chip saying the others are listening, as the way back in. Pause
+      // rather than stop a player built before they left, so coming back only
+      // has to seek instead of rebuilding an iframe.
       card.style.display = 'none';
+      if (chip) chip.style.display = 'flex';
       if (player && player.pauseVideo) { try { player.pauseVideo(); } catch (e) {} }
       render();
       return;
     }
 
+    if (chip) chip.style.display = 'none';
     card.style.display = 'block';
     loadApi();
     if (!apiReady) return;
@@ -197,9 +227,29 @@ const Music = (() => {
 
     joinBtn.style.display = started ? 'none' : 'flex';
     if (playBtn) playBtn.textContent = current && current.playing ? '⏸' : '▶';
+    const card = $m('music-card');
+    // While blocked, the video must be tappable, and the tap must be asked for.
+    if (card) card.classList.toggle('needs-tap', needsTap);
     if (note && started) {
-      note.textContent = current && current.playing ? '' : 'Paused for everyone';
+      note.textContent = needsTap ? 'Tap ▶ on the video to start the music'
+        : current && current.playing ? '' : 'Paused for everyone';
     }
+  }
+
+  // Straight after a join, check whether the sound actually started. If the
+  // browser refused, ask for a tap on the video now rather than two sync
+  // ticks from now.
+  function checkBlocked() {
+    setTimeout(() => {
+      if (!player || !player.getPlayerState || !started || optedOut) return;
+      if (!current || !current.playing) return;
+      let state;
+      try { state = player.getPlayerState(); } catch (e) { return; }
+      if (state !== YT.PlayerState.PLAYING && state !== YT.PlayerState.BUFFERING) {
+        needsTap = true;
+        render();
+      }
+    }, BLOCKED_CHECK_MS);
   }
 
   // The overlay row that says where *you* stand, independent of the room.
@@ -237,7 +287,8 @@ const Music = (() => {
   let myId = null;
   let presenceSent = null;   // what we last told the server, until a broadcast confirms it
 
-  const listeningNow = () => IS_DESKTOP && started && !optedOut;
+  // Blocked waiting for a tap is not listening: the 🎧 should mean sound.
+  const listeningNow = () => started && !optedOut && !needsTap;
 
   function reportPresence() {
     if (!lastMusic || lastMusic.enabled === false || !myId) return;
@@ -256,8 +307,7 @@ const Music = (() => {
   function onState(music, playerId) {
     lastMusic = music || null;
     if (playerId) myId = playerId;
-    reportPresence();   // before the desktop check: a phone must be able to say "not me"
-    if (!IS_DESKTOP) return;
+    reportPresence();
     const openBtn = $m('music-toggle-btn');
     if (music && music.enabled === false) {
       // The host turned it off for this room: leave no trace of it.
@@ -275,13 +325,6 @@ const Music = (() => {
   // ---- wiring --------------------------------------------------------------
   function init() {
     const openBtn = $m('music-toggle-btn');
-    if (!IS_DESKTOP) {
-      // Leave no trace of the feature on a phone.
-      if (openBtn) openBtn.style.display = 'none';
-      const card = $m('music-card');
-      if (card) card.style.display = 'none';
-      return;
-    }
     const overlay = $m('music-overlay');
     const input = $m('music-url');
     const setBtn = $m('music-set');
@@ -331,6 +374,8 @@ const Music = (() => {
     }
 
     // Browsers will not start audio on their own, so each player opts in once.
+    // If this browser still refuses (iPhones), checkBlocked asks for a tap on
+    // the video instead.
     if (joinBtn) {
       joinBtn.addEventListener('click', () => {
         started = true;
@@ -340,6 +385,7 @@ const Music = (() => {
           try { player.seekTo(at, true); player.playVideo(); } catch (e) {}
         }
         render();
+        checkBlocked();
       });
     }
 
@@ -354,9 +400,13 @@ const Music = (() => {
         const at = Math.max(0, targetSeconds(current));
         try { player.seekTo(at, true); if (current.playing) player.playVideo(); } catch (e) {}
       }
+      checkBlocked();
     }
     const leaveBtn = $m('music-leave');
     const meBtn = $m('music-me-btn');
+    // The chip is what someone who left sees while others listen: one tap back in.
+    const chip = $m('music-chip');
+    if (chip) chip.addEventListener('click', joinMe);
     // ✕ on the card: the quick way out while a track is playing.
     if (leaveBtn) leaveBtn.addEventListener('click', () => setOptedOut(true));
     // The overlay row: works either way, and whether or not anything is playing,
@@ -418,6 +468,7 @@ const Music = (() => {
       skewMs,
       started,
       optedOut,
+      needsTap,
       listening: listeningNow(),
       videoId: current && current.videoId,
       playing: current && current.playing,

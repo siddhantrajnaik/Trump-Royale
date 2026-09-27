@@ -56,12 +56,20 @@ function fakeAudioContext() {
 // has loaded. That is deliberately stricter: code that survives the harsher
 // ordering survives the real one too, and it caught music.js depending on a
 // variable that is not assigned until the constructor returns.
-function fakeYT() {
+//
+// `ctl` lets a test play the browser: set ctl.state to what getPlayerState()
+// reports (5 = CUED is what a refused autoplay looks like), and call
+// ctl.onStateChange({ data: 1 }) to stand in for a tap on the video itself.
+// Left alone it reports PLAYING, as it always has.
+function fakeYT(ctl) {
+  ctl = ctl || {};
+  if (ctl.state === undefined) ctl.state = 1;
   return {
     PlayerState: { UNSTARTED: -1, ENDED: 0, PLAYING: 1, PAUSED: 2, BUFFERING: 3, CUED: 5 },
     Player: function PlayerStub(_id, opts) {
       this._t = 0;
-      this.getPlayerState = () => 1;
+      if (opts && opts.events) ctl.onStateChange = opts.events.onStateChange;
+      this.getPlayerState = () => ctl.state;
       this.getCurrentTime = () => this._t;
       this.setVolume = () => {};
       this.playVideo = () => {};
@@ -77,7 +85,12 @@ function fakeYT() {
 
 // Boot the page. Returns the window, the captured socket handlers, any errors
 // thrown while loading, and the ids the scripts looked for but did not find.
-function bootClient() {
+//
+// Options, all defaulting to the desktop setup every older test relies on:
+//   touch: true       - a phone: no hover, no fine pointer, 375px wide
+//   optedOut: true    - this browser left the music on a previous visit
+function bootClient(opts) {
+  opts = opts || {};
   const errors = [];
   // Real script execution, not eval. Top-level const/let in a classic script
   // land in the global lexical scope and are visible to the next script; inside
@@ -112,12 +125,20 @@ function bootClient() {
   });
 
   window.AudioContext = fakeAudioContext();
-  window.YT = fakeYT();
-  // Desktop, so the music module takes its full path rather than standing down.
+  const yt = {};
+  window.YT = fakeYT(yt);
+  // Desktop by default. A touch device matches none of the hover/pointer queries.
   window.matchMedia = (q) => ({
-    matches: /hover: hover|pointer: fine/.test(q),
+    matches: !opts.touch && /hover: hover|pointer: fine/.test(q),
     media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {},
   });
+  if (opts.touch) {
+    Object.defineProperty(window, 'innerWidth', { value: 375, configurable: true });
+    Object.defineProperty(window, 'innerHeight', { value: 812, configurable: true });
+  }
+  // Before the scripts run: music.js reads this once, at load.
+  if (opts.optedOut) window.localStorage.setItem('tcr_music_out', '1');
+  else window.localStorage.removeItem('tcr_music_out');
 
   // Record every id the scripts ask for that the markup does not contain.
   const realGetById = window.document.getElementById.bind(window.document);
@@ -138,7 +159,7 @@ function bootClient() {
     }
   }
 
-  return { window, errors, missingIds, socketHandlers, emitted, dom };
+  return { window, errors, missingIds, socketHandlers, emitted, dom, yt };
 }
 
 // A genuine state straight out of the engine, so the renderer is fed the real
@@ -188,8 +209,8 @@ function engineState(count, mode, phase) {
 
 // A jsdom window keeps its timers running - music.js sets a sync interval - so
 // every window must be closed or the test process never exits.
-function withClient(fn) {
-  const c = bootClient();
+function withClient(fn, opts) {
+  const c = bootClient(opts);
   const close = () => { try { c.dom.window.close(); } catch (e) {} };
   let out;
   try {
@@ -470,4 +491,218 @@ test("client: music state drives the player card", () => {
     assert.strictEqual(c.window.document.getElementById("music-toggle-btn").style.display, "none",
       "the music button is hidden when the room has it off");
   });
+});
+
+// ---- phones, blocked playback, and the way back in ------------------------
+
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+// A room with a track playing, and whoever the server believes is listening.
+function musicRoom(listeners) {
+  const room = { music: MusicServer.emptyMusic(), musicEnabled: true };
+  MusicServer.setTrack(room, "dQw4w9WgXcQ", "p1", Date.now());
+  for (const pid of listeners || []) MusicServer.setListening(room, pid, true);
+  return room;
+}
+function stateFor(room) {
+  const s = engineState(4, "ffa", "playing");
+  s.music = MusicServer.payload(room, Date.now());
+  return s;
+}
+const presenceOf = (c) => c.emitted.filter(e => e.ev === "music-presence").map(e => e.data.listening);
+const debugOf = (c) => c.window.eval("Music.debug()");
+
+// An iPhone refuses to let our join button start the sound: the player sits
+// CUED. If we believed our own playVideo() the table would show a 🎧 by
+// someone hearing nothing, and they would never be told to tap the video. The
+// join itself may announce "listening" before the check runs - what matters is
+// that once the block is spotted, the room is corrected.
+test("client: a browser that refuses to play is caught, and the 🎧 is withdrawn", async () => {
+  const room = musicRoom();
+  return withClient(async c => {
+    const doc = c.window.document;
+    await wired(c);
+    c.yt.state = 5;                                        // CUED: the browser said no
+    c.socketHandlers["game-state"](stateFor(room));
+
+    doc.getElementById("music-join").click();
+    assert.ok(!doc.getElementById("music-card").classList.contains("needs-tap"),
+      "not judged blocked the instant the button is pressed");
+    await sleep(1650);                                     // past BLOCKED_CHECK_MS
+
+    const card = doc.getElementById("music-card");
+    assert.ok(card.classList.contains("needs-tap"), "the card asks for a tap once playback failed to start");
+    assert.strictEqual(doc.getElementById("music-note").textContent, "Tap ▶ on the video to start the music",
+      "and says so in words");
+    assert.strictEqual(doc.getElementById("music-join").style.display, "none",
+      "the join overlay stays out of the way so the video itself can be tapped");
+    assert.strictEqual(debugOf(c).listening, false, "the client knows it cannot hear anything");
+
+    // The server heard the join and now lists p0 as listening.
+    const before = presenceOf(c).length;
+    MusicServer.setListening(room, "p0", true);
+    c.socketHandlers["game-state"](stateFor(room));
+    assert.deepStrictEqual(presenceOf(c).slice(before), [false],
+      "the client corrects the server: blocked is not listening");
+    assert.ok(card.classList.contains("needs-tap"), "and a fresh state does not paper over the block");
+    assert.deepStrictEqual(c.emitted.filter(e => e.ev === "music-control"), [], "nobody else was paused");
+    assert.deepStrictEqual(c.errors, []);
+  });
+});
+
+// The sync loop is the other way a block is found - and the one that catches
+// an iPhone whose screen was locked mid-song. Each pass asks the player to play;
+// two refusals in a row mean we are blocked. The tap on the video is then the
+// only thing that can start it, and it has to clear the prompt and bring the 🎧
+// back, or a player who did everything right still shows as deaf.
+test("client: tapping the video after a block starts the music and restores the 🎧", async () => {
+  const room = musicRoom();
+  return withClient(async c => {
+    const doc = c.window.document;
+    const card = doc.getElementById("music-card");
+    await wired(c);
+    c.socketHandlers["game-state"](stateFor(room));
+    doc.getElementById("music-join").click();              // announced true
+    MusicServer.setListening(room, "p0", true);
+    c.socketHandlers["game-state"](stateFor(room));
+
+    c.yt.state = 2;                                        // paused under us (screen lock)
+    c.socketHandlers["game-state"](stateFor(room));        // each state runs sync once
+    assert.ok(!card.classList.contains("needs-tap"), "one refusal is not yet a block");
+    c.socketHandlers["game-state"](stateFor(room));
+    assert.ok(card.classList.contains("needs-tap"), "two refusals are");
+    assert.deepStrictEqual(presenceOf(c), [true, false], "and the room is told they dropped out");
+
+    MusicServer.setListening(room, "p0", false);           // server takes note
+    c.socketHandlers["game-state"](stateFor(room));
+    assert.deepStrictEqual(presenceOf(c), [true, false], "no repeat once the server agrees");
+
+    c.yt.state = 1;                                        // the user taps play on the video
+    c.yt.onStateChange({ data: 1 });
+    assert.ok(!card.classList.contains("needs-tap"), "the tap prompt goes");
+    assert.strictEqual(doc.getElementById("music-note").textContent, "", "the note clears");
+    assert.strictEqual(debugOf(c).listening, true, "they are listening again");
+    assert.deepStrictEqual(presenceOf(c), [true, false, true], "and the room hears it straight away");
+    assert.deepStrictEqual(c.errors, []);
+  });
+});
+
+// The same tap is how an iPhone user joins without ever pressing our button:
+// it has to count as joining, not leave them marked as outside the music.
+test("client: a tap on the video with no join first still counts as joining", async () => {
+  const room = musicRoom();
+  return withClient(async c => {
+    await wired(c);
+    c.socketHandlers["game-state"](stateFor(room));
+    assert.strictEqual(debugOf(c).started, false, "not joined yet");
+    c.yt.onStateChange({ data: 1 });
+    assert.strictEqual(debugOf(c).started, true, "the tap joined them");
+    assert.strictEqual(c.window.document.getElementById("music-join").style.display, "none",
+      "and the join overlay is gone");
+    assert.deepStrictEqual(presenceOf(c), [true], "the room is told");
+  });
+});
+
+// The check must not cry wolf: on a desktop (or any phone that allows it) the
+// track plays, and a "tap the video" prompt would be confusing noise.
+test("client: when playback works, joining never asks for a tap", async () => {
+  const room = musicRoom();
+  return withClient(async c => {
+    const doc = c.window.document;
+    await wired(c);
+    c.socketHandlers["game-state"](stateFor(room));
+    doc.getElementById("music-join").click();
+    await sleep(1650);
+    assert.ok(!doc.getElementById("music-card").classList.contains("needs-tap"), "no tap prompt");
+    assert.strictEqual(doc.getElementById("music-note").textContent, "", "no note");
+    assert.strictEqual(debugOf(c).listening, true, "listening");
+    assert.deepStrictEqual(presenceOf(c), [true], "announced once, never withdrawn");
+  });
+});
+
+// Someone who left the music still needs to know it is on and to get back in
+// with one tap - without the video taking up their table. The chip is that, and
+// coming back through it must be as private as leaving was.
+test("client: after opting out, a chip shows the music is on and brings you back", async () => {
+  const room = musicRoom(["p1", "p2"]);
+  await withClient(async c => {
+    const doc = c.window.document;
+    const chip = doc.getElementById("music-chip");
+    const card = doc.getElementById("music-card");
+    await wired(c);
+    c.socketHandlers["game-state"](stateFor(room));
+
+    assert.strictEqual(debugOf(c).optedOut, true, "the choice from last visit was remembered");
+    assert.strictEqual(chip.style.display, "flex", "the chip is shown");
+    assert.strictEqual(card.style.display, "none", "the video card is not");
+    assert.strictEqual(doc.getElementById("music-chip-count").textContent, "2 listening",
+      "the chip says how many are listening");
+    assert.deepStrictEqual(presenceOf(c), [], "an opted-out player claims nothing");
+
+    chip.click();
+    assert.strictEqual(debugOf(c).optedOut, false, "one tap and they are back in");
+    assert.strictEqual(c.window.localStorage.getItem("tcr_music_out"), null, "and it is remembered");
+    assert.strictEqual(chip.style.display, "none", "the chip goes");
+    assert.strictEqual(card.style.display, "block", "the card returns");
+    assert.strictEqual(debugOf(c).listening, true, "listening");
+    assert.deepStrictEqual(presenceOf(c), [true], "the room is told they joined");
+    assert.deepStrictEqual(c.emitted.filter(e => e.ev === "music-control"), [],
+      "and nobody else's playback was touched");
+    assert.deepStrictEqual(c.errors, []);
+  }, { optedOut: true });
+
+  // Nobody listening yet: the chip still says the music exists.
+  await withClient(async c => {
+    await wired(c);
+    c.socketHandlers["game-state"](stateFor(musicRoom()));
+    assert.strictEqual(c.window.document.getElementById("music-chip-count").textContent, "Music on");
+    assert.strictEqual(c.window.document.getElementById("music-chip").style.display, "flex");
+  }, { optedOut: true });
+
+  // Opting out by the x on the card lands in the same place.
+  await withClient(async c => {
+    const doc = c.window.document;
+    await wired(c);
+    c.socketHandlers["game-state"](stateFor(musicRoom()));
+    assert.strictEqual(doc.getElementById("music-chip").style.display, "none", "no chip while you are in");
+    doc.getElementById("music-leave").click();
+    assert.strictEqual(doc.getElementById("music-chip").style.display, "flex", "leaving brings up the chip");
+    assert.strictEqual(doc.getElementById("music-card").style.display, "none");
+  });
+});
+
+// A chip reading "Join" with nothing to join would be a dead button.
+test("client: with no track, neither the chip nor the card shows", async () => {
+  return withClient(async c => {
+    const doc = c.window.document;
+    await wired(c);
+    c.socketHandlers["game-state"](stateFor(musicRoom()));
+    assert.strictEqual(doc.getElementById("music-chip").style.display, "flex", "chip up while a track plays");
+
+    c.socketHandlers["game-state"](engineState(4, "ffa", "playing"));   // track stopped
+    assert.strictEqual(doc.getElementById("music-chip").style.display, "none", "the chip goes with the track");
+    assert.strictEqual(doc.getElementById("music-card").style.display, "none", "and no card either");
+    assert.strictEqual(debugOf(c).optedOut, true, "they are still opted out for next time");
+  }, { optedOut: true });
+});
+
+// Music used to be desktop-only. A phone - no hover, coarse pointer, narrow -
+// must now get the card like anyone else. (jsdom does not apply CSS media
+// queries, so this checks only what the scripts do.)
+test("client: a touch-only phone takes part in the music", async () => {
+  const room = musicRoom();
+  return withClient(async c => {
+    const doc = c.window.document;
+    assert.strictEqual(c.window.matchMedia("(hover: hover)").matches, false, "the stub really is a phone");
+    assert.strictEqual(c.window.innerWidth, 375, "a narrow one");
+    await wired(c);
+    c.socketHandlers["game-state"](stateFor(room));
+    assert.strictEqual(doc.getElementById("music-card").style.display, "block", "the card is shown");
+    assert.notStrictEqual(doc.getElementById("music-toggle-btn").style.display, "none",
+      "and the music button is not hidden by script");
+    doc.getElementById("music-join").click();
+    assert.strictEqual(debugOf(c).listening, true, "joining works");
+    assert.deepStrictEqual(presenceOf(c), [true]);
+    assert.deepStrictEqual(c.errors, []);
+  }, { touch: true });
 });

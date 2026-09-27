@@ -56,7 +56,7 @@
           <button class="btn toggle active" data-music="on">On</button>
           <button class="btn toggle" data-music="off">Off</button>
         </div>
-        <p class="subtle" id="music-hint" style="margin-top:4px;font-size:.75rem">Play a YouTube track together. Desktop only.</p>
+        <p class="subtle" id="music-hint" style="margin-top:4px;font-size:.75rem">Play a YouTube track together, on any device.</p>
         <label>Round titles</label>
         <div id="titles-group" class="btn-group">
           <button class="btn toggle active" data-titles="on">On</button>
@@ -94,7 +94,10 @@
         <div id="trick-info"></div>
         <div id="connection-banner" style="display:none"></div>
 
-        <!-- Shared YouTube player. Desktop only; music.js hides it elsewhere. -->
+        <!-- Shown instead of the player to someone who left while others listen. -->
+        <button id="music-chip" type="button" style="display:none">🎧 <span id="music-chip-count"></span> · Join</button>
+
+        <!-- Shared YouTube player. Compact on phones and small tablets. -->
         <div id="music-card" style="display:none">
           <div id="yt-player-wrap"><div id="yt-player"></div>
             <button id="music-join" type="button">▶ Join the music</button>

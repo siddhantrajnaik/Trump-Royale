@@ -1,10 +1,10 @@
-# Trump Card Royal — Handover, v1.0.5
+# Trump Card Royal — Handover, v1.0.6
 
 A real-time multiplayer trick-taking card game for 4, 5 or 6 players. Browser-based,
 installable as an app, no database, deployable free.
 
 - **Repository:** https://github.com/siddhantrajnaik/Trump-Royale
-- **Version:** 1.0.5 (git tag `v1.0.5`)
+- **Version:** 1.0.6 (git tag `v1.0.6`)
 - **Stack:** Node.js + Express + Socket.IO on the server; plain HTML/CSS/JavaScript
   on the client. No framework, no build step, no database.
 - **Runtime dependencies:** exactly two — `express` and `socket.io`.
@@ -19,7 +19,7 @@ npm start            # http://localhost:3000
 ```
 
 ```bash
-npm test             # 54 tests, under 10 seconds
+npm test             # 61 tests, under 10 seconds
 npm run dev          # same as start, restarts on file change
 ```
 
@@ -200,15 +200,15 @@ their own hand and nobody else's.
 | `server/index.js` | 303 | HTTP, static files, socket events, room lifecycle |
 | `server/game/engine.js` | 623 | **All game rules.** Deck, dealing, calls, tricks, scoring |
 | `server/music.js` | 119 | Shared-music state and the playback clock |
-| `public/index.html` | 188 | Every screen and overlay |
-| `public/app.js` | 872 | Rendering, input, screen flow |
-| `public/style.css` | 205 | All styling |
+| `public/index.html` | 191 | Every screen and overlay |
+| `public/app.js` | 874 | Rendering, input, screen flow |
+| `public/style.css` | 235 | All styling |
 | `public/sound.js` | 152 | Synthesised sound effects |
-| `public/music.js` | 428 | YouTube player and drift correction |
+| `public/music.js` | 479 | YouTube player and drift correction |
 | `public/sw.js` | 102 | Service worker |
 | `public/manifest.webmanifest` | 34 | PWA manifest |
 | `public/icons/*.png` | — | App icons, generated (§7.3) |
-| `server/test/*.js` | 1427 | 54 tests |
+| `server/test/*.js` | 1662 | 61 tests |
 | `render.yaml` | 10 | Render deployment config |
 
 ### 3.2 The entity abstraction
@@ -307,9 +307,10 @@ Browsers block audio until a gesture. The unlock retries on every gesture until 
 context genuinely reports `running` — a single attempt that silently failed used to
 leave the whole session mute. Diagnose with `Sound.state()` in the console.
 
-### 4.4 Shared music (desktop only)
+### 4.4 Shared music
 
-Anyone pastes a YouTube link; everyone hears the same track at the same point.
+Anyone pastes a YouTube link; everyone hears the same track at the same point. It works
+on desktops, phones and tablets.
 
 **How the sync works.** The server holds a *logical clock* — which video, whether it's
 playing, and the position when that last changed. Each client derives where the track
@@ -331,14 +332,15 @@ the console.
 | Control | Where | Scope | Mechanism |
 |---|---|---|---|
 | On / Off at room creation | Create screen | the whole room, permanently | `musicEnabled`, server-enforced |
-| ⏸ play / pause · ⏹ stop | music card, 🎵 overlay | the whole room, right now | `music-control` to the server |
-| ✕ · **Leave / Join the music** | music card, 🎵 overlay | **just that player** | client-side only, nothing sent |
+| ⏸ play / pause (card) · Stop the music (🎵 overlay) | as listed | the whole room, right now | `music-control` to the server |
+| ✕ · **Leave / Join the music** | music card, 🎵 overlay, `#music-chip` | **just that player** | client-side only, nothing sent |
 
 Leaving is deliberately silent — it emits nothing, so the rest of the table keeps
-listening. For the player who left, the card disappears from the table completely and
-the YouTube API is never loaded; the 🎵 corner button dims to 40% and stays as the way
-back in. A player they had already built is *paused*, not destroyed, so rejoining only
-has to seek instead of rebuilding an iframe.
+listening. For the player who left, the card disappears and the YouTube API is never
+loaded; the 🎵 corner button dims to 40%. While a track is playing they see a small chip
+instead, `🎧 3 listening · Join` (`Music on` when nobody is), top-left on desktop and
+bottom-left on phones — one tap rejoins. A player they had already built is *paused*,
+not destroyed, so rejoining only has to seek instead of rebuilding an iframe.
 
 The **Leave / Join** control lives in the 🎵 overlay as well as on the card, because the
 card only exists while something is playing — somebody who wants no music at all needs
@@ -352,8 +354,26 @@ Two regression tests cover this. One asserts no socket traffic escapes either bu
 it fails if a future edit turns leaving into a room-wide pause. The other opts out with
 nothing playing and then pushes a track through, asserting the card never appears.
 
-**Who is listening.** A 🎧 appears before the name of every player who has switched the
-music on — joined, and not dropped out. The card shows `🎧 3 of 4 listening`, and the 🎵
+**Phones and tablets.** At ≤820px the card becomes a compact tile in the bottom-left
+corner of the table, which every seat layout leaves clear: a 128×72 video with ⏸ ⟳ ✕.
+There is no volume slider — the hardware buttons do that, and iOS ignores `setVolume`.
+
+The hard part is starting the sound. Browsers — iOS Safari above all — may refuse to
+play unless the tap lands on the YouTube video itself; a tap on our own **Join** button
+does not count. So the client never assumes `playVideo()` worked:
+
+- 1.5s after a join, `checkBlocked()` looks: the room is playing, ours is neither
+  playing nor buffering → blocked.
+- `sync()` catches it later too: two ticks in a row asking to play and still not playing.
+
+Blocked sets `needsTap`: the video pulses in the accent colour and the note reads *Tap ▶
+on the video to start the music*. The tap arrives as `onStateChange → PLAYING`, which
+clears `needsTap` and counts as joining. Locking an iPhone and coming back lands in the
+same state and recovers the same way, with one tap.
+
+**Who is listening.** A 🎧 appears before the name of every player whose music has
+actually started — joined, not dropped out, and not blocked waiting for a tap
+(`listening = started && !optedOut && !needsTap`). The card shows `🎧 3 of 4 listening`, and the 🎵
 overlay names who is and isn't, since the people who can't hear are the ones who need to
 act. Nothing shows while no track is set.
 
@@ -362,9 +382,10 @@ broadcast it compares what it is actually doing with the server's `listeners` li
 corrects the server when they differ. So a reconnect, or a server restart that wiped the
 list, heals itself. It remembers what it sent until a broadcast confirms it — clearing
 on the ack instead double-sent in the gap before the broadcast. Disconnecting drops you
-from the list; phones never report listening, because they can't play it.
+from the list, and so does becoming blocked — a locked-and-unlocked iPhone loses its 🎧
+until the tap.
 
-**It means "switched on", not "can hear".** The browser has no way to know where the
+**It means "the sound started", not "can hear".** The browser has no way to know where the
 sound ends up. The classic case: a Bluetooth headset whose mic is in use by a video call
 drops into hands-free mode, and Windows keeps sending the browser's audio to the silent
 stereo device — that player shows 🎧 and hears nothing. Fix: use the laptop's built-in
@@ -372,11 +393,14 @@ mic for the call, or set the browser's output to the Hands-Free device in Window
 mixer. There is no in-game speaker picker because browsers do not let a page redirect a
 YouTube iframe's audio.
 
-Diagnose with `Music.debug()` — `optedOut` and `listening` are in there.
+Diagnose with `Music.debug()` — `optedOut`, `needsTap` and `listening` are in there, so a
+player blocked by their browser can be told apart from one who never joined.
 
 **Limits that cannot be fixed in code:** ads interrupt only the person watching them ·
-iOS stops playback when the screen locks · live streams won't embed (the card says so)
-· each player must click **Join the music** once, because browsers forbid autoplay.
+iOS stops playback when the screen locks (one tap on the video resumes it) · live
+streams won't embed (the card says so) · each player must click **Join the music** once,
+because browsers forbid autoplay — and on iPhones that isn't enough: the first tap has to
+land on the video itself.
 
 ### 4.5 PWA
 
@@ -402,7 +426,7 @@ the deployed URL in Chrome once and confirm the install icon appears.**
 ## 5. Testing
 
 ```bash
-npm test        # 54 tests
+npm test        # 61 tests
 ```
 
 | Group | Count | Covers |
@@ -412,7 +436,7 @@ npm test        # 54 tests
 | Service worker | 7 | Transport never intercepted, network-first, offline fallback, cold start |
 | Music | 11 | Link parsing, playback clock, clock-skew, room flag, who is listening |
 | Titles | 5 | Best/worst pick, teammates share it, ties, carry-over, none before round 1 |
-| Client | 13 | **The browser code actually starts and can draw itself** |
+| Client | 20 | **The browser code actually starts and can draw itself** |
 
 **Why the client tests exist.** Every other test runs server-side. The suite once
 reported 33/33 while the client was throwing on load and half the app never wired up —
@@ -495,6 +519,8 @@ shouldn't have to know about it.
 | **Not verified on real phones** | Layout tested at 320/375/1200px, but emulated |
 | **PWA install never actually run** | See §4.5 — needs one manual check |
 | **Music sync only tested on localhost** | Real latency untested; design accounts for it |
+| **Music on phones never run on a real phone** | Blocked detection, tap-to-start and lock/resume (§4.4) are verified only in jsdom tests and desktop browsers — never on a real iPhone or Android device. Needs one check on a real phone, an iPhone by preference |
+| **Music tile can cover a seat in 6-player** | Measured: on phones under ~600px tall (iPhone SE with Safari's bars) the compact tile overlaps both lower seats, and at 1024×768 the desktop card covers the upper-left seat by 70×83px (larger desktops likely similar, unmeasured). 4- and 5-player are clear. The fix is a layout decision - smaller video, compact tile up to 1024px, or moving seats in `seatPositions()` |
 | **No bots** | You need exactly 4, 5 or 6 humans to start |
 | **Duplicate names break reconnect** | Two players called "Alex" — the wrong one can reclaim the wrong seat. Nothing prevents the duplicate at join time |
 | **No round history** | The scoreboard shows totals, not what happened per round |
