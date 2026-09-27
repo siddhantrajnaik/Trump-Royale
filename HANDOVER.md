@@ -1,10 +1,10 @@
-# Trump Card Royal — Handover, v1.0.3
+# Trump Card Royal — Handover, v1.0.4
 
 A real-time multiplayer trick-taking card game for 4, 5 or 6 players. Browser-based,
 installable as an app, no database, deployable free.
 
 - **Repository:** https://github.com/siddhantrajnaik/Trump-Royale
-- **Version:** 1.0.3 (git tag `v1.0.3`)
+- **Version:** 1.0.4 (git tag `v1.0.4`)
 - **Stack:** Node.js + Express + Socket.IO on the server; plain HTML/CSS/JavaScript
   on the client. No framework, no build step, no database.
 - **Runtime dependencies:** exactly two — `express` and `socket.io`.
@@ -19,7 +19,7 @@ npm start            # http://localhost:3000
 ```
 
 ```bash
-npm test             # 45 tests, under 10 seconds
+npm test             # 51 tests, under 10 seconds
 npm run dev          # same as start, restarts on file change
 ```
 
@@ -159,6 +159,23 @@ about **2 points** of Joker chance. Both match the arithmetic exactly (`12/51` a
 If that trump edge is ever judged too strong, the lever is the rule in §2.3 — where the
 colour card goes — not the shuffle.
 
+### 2.9 Round titles — Raja Babu and Maichia
+
+Table banter, not a rule: nothing about scoring changes.
+
+- When a round ends, the **highest round score** earns **👑 Raja Babu** (gold ribbon) and
+  the **lowest** earns **🫠 Maichia** (purple ribbon), shown above the name.
+- It is judged on **that round's score**, not the running total.
+- In team modes the score belongs to the team, so **every teammate** wears the ribbon.
+- Ties share the title. If everyone scored the same, nobody stood out and there are none.
+- Titles ride through the **whole next round** and are replaced when it ends. None exist
+  before round 1 finishes.
+- The host turns them **On/Off on the Create screen** (default On, remembered in
+  `tcr_titles_room`). When off, the server strips `titles` out of every broadcast, so no
+  client ever receives them.
+
+Computed on the server in `_pickTitles()`, so every player sees the same verdict.
+
 ---
 
 ## 3. Architecture
@@ -180,18 +197,18 @@ their own hand and nobody else's.
 
 | File | Lines | What it is |
 |---|---|---|
-| `server/index.js` | 283 | HTTP, static files, socket events, room lifecycle |
-| `server/game/engine.js` | 574 | **All game rules.** Deck, dealing, calls, tricks, scoring |
+| `server/index.js` | 290 | HTTP, static files, socket events, room lifecycle |
+| `server/game/engine.js` | 623 | **All game rules.** Deck, dealing, calls, tricks, scoring |
 | `server/music.js` | 103 | Shared-music state and the playback clock |
-| `public/index.html` | 180 | Every screen and overlay |
-| `public/app.js` | 799 | Rendering, input, screen flow |
-| `public/style.css` | 191 | All styling |
+| `public/index.html` | 186 | Every screen and overlay |
+| `public/app.js` | 842 | Rendering, input, screen flow |
+| `public/style.css` | 202 | All styling |
 | `public/sound.js` | 152 | Synthesised sound effects |
 | `public/music.js` | 396 | YouTube player and drift correction |
 | `public/sw.js` | 102 | Service worker |
 | `public/manifest.webmanifest` | 34 | PWA manifest |
 | `public/icons/*.png` | — | App icons, generated (§7.3) |
-| `server/test/*.js` | 1612 | 45 tests |
+| `server/test/*.js` | 1340 | 51 tests |
 | `render.yaml` | 10 | Render deployment config |
 
 ### 3.2 The entity abstraction
@@ -208,7 +225,7 @@ Client → server (all take an acknowledgement callback):
 
 | Event | Payload | Notes |
 |---|---|---|
-| `create-room` | `{playerName, gameMode, playerCount, musicEnabled}` | Returns `{roomCode, playerId}` |
+| `create-room` | `{playerName, gameMode, playerCount, musicEnabled, titlesEnabled}` | Returns `{roomCode, playerId}` |
 | `join-room` | `{roomCode, playerName}` | Also the reconnect path (§3.5) |
 | `start-game` | — | Host only |
 | `submit-call` | `{call}` | |
@@ -262,6 +279,7 @@ Everything here was broken at one point and is now covered by tests.
 | `tcr_music_room` | `on` / `off` — remembered music choice for new rooms |
 | `tcr_music_vol` | 0–100, this player's music volume |
 | `tcr_music_out` | `1` if this player has dropped out of the shared music (§4.4) |
+| `tcr_titles_room` | `on` / `off` — remembered round-titles choice for new rooms (§2.9) |
 
 ### 4.2 The hand
 
@@ -363,7 +381,7 @@ the deployed URL in Chrome once and confirm the install icon appears.**
 ## 5. Testing
 
 ```bash
-npm test        # 45 tests
+npm test        # 51 tests
 ```
 
 | Group | Count | Covers |
@@ -372,7 +390,8 @@ npm test        # 45 tests
 | Rules | 10 | Decks, round shape, scoring, soaks, reconnect, end-game vote, colour card, seat fairness |
 | Service worker | 7 | Transport never intercepted, network-first, offline fallback, cold start |
 | Music | 10 | Link parsing, playback clock, clock-skew, room flag |
-| Client | 10 | **The browser code actually starts and can draw itself** |
+| Titles | 5 | Best/worst pick, teammates share it, ties, carry-over, none before round 1 |
+| Client | 11 | **The browser code actually starts and can draw itself** |
 
 **Why the client tests exist.** Every other test runs server-side. The suite once
 reported 33/33 while the client was throwing on load and half the app never wired up —

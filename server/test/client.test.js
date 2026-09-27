@@ -293,6 +293,35 @@ test("client: a disconnected player surfaces in the banner", () => {
   });
 });
 
+test("client: round titles land on the right names, and vanish when off", () => {
+  const state = engineState(4, "2v2", "playing");     // teams p0+p2, p1+p3
+  state.titles = { rajaBabu: ["p1", "p3"], maichia: ["p0", "p2"] };
+
+  withClient(c => {
+    c.socketHandlers["game-state"](state);
+    const doc = c.window.document;
+    const seats = [...doc.querySelectorAll("#seats .seat")];
+    const bannerFor = (name) => {
+      const s = seats.find(el => el.querySelector(".seat-name").textContent.includes(name));
+      const b = s && s.querySelector(".title-banner");
+      return b ? b.textContent : null;
+    };
+    assert.ok(/Raja Babu/.test(bannerFor("Bob")), "opponent 1 is Raja Babu");
+    assert.ok(/Raja Babu/.test(bannerFor("Diana")), "and so is their teammate");
+    assert.ok(/Maichia/.test(bannerFor("Charlie")), "your teammate is Maichia");
+    assert.ok(/Maichia/.test(doc.getElementById("your-info").textContent), "and so are you");
+    assert.deepStrictEqual(c.errors, []);
+  });
+
+  // The server sends titles: null when the room has them off.
+  const off = engineState(4, "2v2", "playing");
+  off.titles = null;
+  withClient(c => {
+    c.socketHandlers["game-state"](off);
+    assert.strictEqual(c.window.document.querySelectorAll(".title-banner").length, 0, "no banners at all");
+  });
+});
+
 // Dropping out has to be strictly personal. If it ever reached the server it
 // would pause the track for the whole table, which is the opposite of the point.
 test("client: a player can drop out of the music on their own", async () => {

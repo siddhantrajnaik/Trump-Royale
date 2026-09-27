@@ -50,6 +50,7 @@ $('#btn-back-menu').addEventListener('click', () => showScreen('screen-menu'));
 let selectedPC = 4;
 let selectedMode = '2v2';
 let selectedMusic = localStorage.getItem('tcr_music_room') !== 'off';
+let selectedTitles = localStorage.getItem('tcr_titles_room') !== 'off';
 
 $$('[data-pc]').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -87,6 +88,18 @@ $$('[data-music]').forEach(b => {
   b.classList.toggle('active', (b.dataset.music === 'on') === selectedMusic);
 });
 
+$$('[data-titles]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    $$('[data-titles]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedTitles = btn.dataset.titles === 'on';
+    localStorage.setItem('tcr_titles_room', selectedTitles ? 'on' : 'off');
+  });
+});
+$$('[data-titles]').forEach(b => {
+  b.classList.toggle('active', (b.dataset.titles === 'on') === selectedTitles);
+});
+
 $$('[data-mode]').forEach(btn => {
   btn.addEventListener('click', () => {
     $$('[data-mode]').forEach(b => b.classList.remove('active'));
@@ -97,7 +110,10 @@ $$('[data-mode]').forEach(btn => {
 
 $('#btn-confirm-create').addEventListener('click', async () => {
   const name = $('#input-name').value.trim();
-  const res = await emit('create-room', { playerName: name, gameMode: selectedMode, playerCount: selectedPC, musicEnabled: selectedMusic });
+  const res = await emit('create-room', {
+    playerName: name, gameMode: selectedMode, playerCount: selectedPC,
+    musicEnabled: selectedMusic, titlesEnabled: selectedTitles,
+  });
   if (res.error) { alert(res.error); return; }
   myPlayerId = res.playerId;
   localStorage.setItem('tcr_pid', myPlayerId);
@@ -354,6 +370,7 @@ function renderLobby() {
 }
 
 function renderGame() {
+  noteTitles();
   renderHeader();
   renderSeats();
   renderTrick();
@@ -364,6 +381,7 @@ function renderGame() {
   renderRoundEnd();
   renderGameOver();
   renderScoreboard();
+  titlesFresh = false;   // partial redraws after this (card taps) must not replay it
 }
 
 function renderYourInfo() {
@@ -376,6 +394,10 @@ function renderYourInfo() {
   const isMyTurn = state.currentPlayerSeat === state.you.seat && state.phase === 'playing';
 
   let parts = [`<span>${esc(me?.name || 'You')}</span>`];
+  // state.you.id, not myPlayerId: it arrives with every snapshot, so it is
+  // right even before the create/join handshake has set the local copy.
+  const mine = titleBanner(state.you.id, 'span');
+  if (mine) parts.push(mine);
   if (me?.isDealer) parts.push('<span>Dealer</span>');
   if (me?.isColorPicker) parts.push('<span>Color Picker</span>');
   if (call !== null) parts.push(`<span>Call: <span class="val">${call}</span></span>`);
@@ -452,6 +474,7 @@ function renderSeats() {
     const partnerMark = getPartnerMark(p);
 
     div.innerHTML = `
+      ${titleBanner(p.id)}
       <div class="${nameClass}">${esc(p.name)}${partnerMark}</div>
       <div class="seat-cards">${p.connected ? '' : 'offline · '}${p.cardsRemaining} cards${p.isDealer ? ' · D' : ''}${p.isColorPicker ? ' · CP' : ''}</div>
       ${callText ? `<div class="seat-call">${callText}</div>` : ''}
@@ -459,6 +482,26 @@ function renderSeats() {
     `;
     container.appendChild(div);
   }
+}
+
+// Raja Babu / Maichia from the last finished round. The server leaves titles
+// out entirely when the room has them off, so no flag check is needed here.
+function titleBanner(playerId, tag = 'div') {
+  const t = state && state.titles;
+  if (!t) return '';
+  const fresh = titlesFresh ? ' fresh' : '';
+  if (t.rajaBabu.includes(playerId)) return `<${tag} class="title-banner raja${fresh}">👑 Raja Babu</${tag}>`;
+  if (t.maichia.includes(playerId)) return `<${tag} class="title-banner maichia${fresh}">🫠 Maichia</${tag}>`;
+  return '';
+}
+
+// True for exactly one render: the one where the titles changed.
+let titlesKey = null;
+let titlesFresh = false;
+function noteTitles() {
+  const key = state && state.titles ? JSON.stringify(state.titles) : null;
+  titlesFresh = key !== null && key !== titlesKey;
+  titlesKey = key;
 }
 
 function getEntityId(player) {

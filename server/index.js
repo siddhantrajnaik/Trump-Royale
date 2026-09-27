@@ -41,6 +41,10 @@ function broadcastState(roomCode) {
     state.roomCode = roomCode;
     state.hostId = room.hostId;
     state.music = Music.payload(room, Date.now());
+    // Round titles are opt-out per room. Strip them here rather than hiding
+    // them in the client, so a room with them off never receives them at all.
+    state.titlesEnabled = room.titlesEnabled !== false;
+    if (!state.titlesEnabled) state.titles = null;
     io.to(socketId).emit('game-state', state);
   }
 }
@@ -69,7 +73,7 @@ io.on('connection', (socket) => {
   let currentRoom = null;
   let currentPlayerId = null;
 
-  socket.on('create-room', ({ playerName, gameMode, playerCount, musicEnabled }, ack) => {
+  socket.on('create-room', ({ playerName, gameMode, playerCount, musicEnabled, titlesEnabled }, ack) => {
     playerCount = parseInt(playerCount);
     if (![4, 5, 6].includes(playerCount)) return ack?.({ error: 'Player count must be 4, 5 or 6' });
     if (playerCount === 6 && gameMode !== '3v3') gameMode = '3v3';
@@ -90,6 +94,9 @@ io.on('connection', (socket) => {
       // Off is a deliberate choice by the host, so only an explicit false
       // disables it; anything else (including an older client) leaves it on.
       musicEnabled: musicEnabled !== false,
+      // Raja Babu / Maichia banners. Same rule as music: only an explicit false
+      // turns them off.
+      titlesEnabled: titlesEnabled !== false,
     };
     rooms.set(code, room);
 

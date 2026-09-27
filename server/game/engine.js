@@ -102,6 +102,7 @@ class GameEngine {
     this.endGameRequests = new Set();
     this.lastTrick = null;
     this.pendingTrickWinner = null;
+    this.titles = null;
   }
 
   addPlayer(id, name) {
@@ -455,8 +456,30 @@ class GameEngine {
       );
       this.cumulativeScores[eid] = Math.round((this.cumulativeScores[eid] + this.roundScores[eid]) * 10) / 10;
     }
+    this.titles = this._pickTitles();
 
     return { ok: true, trickComplete: true, roundEnd: true };
+  }
+
+  // Round banter: the best score of the round is Raja Babu, the worst is
+  // Maichia. Titles are not cleared by startRound, so they ride through the
+  // whole next round until its end replaces them. Ties share the title; if
+  // everyone scored the same, nobody stood out and there are none.
+  //
+  // Returned as player ids, not entity ids: in team modes the score belongs to
+  // the team, so every teammate wears the banner.
+  _pickTitles() {
+    const scores = this._entityIds().map(eid => [eid, this.roundScores[eid]]);
+    const values = scores.map(([, v]) => v);
+    const best = Math.max(...values);
+    const worst = Math.min(...values);
+    if (best === worst) return null;
+
+    const playersOf = (eid) => this.gameMode === 'ffa'
+      ? [eid]
+      : this.teams.find(t => t.id === eid).playerIds;
+    const holders = (v) => scores.filter(([, s]) => s === v).flatMap(([eid]) => playersOf(eid));
+    return { rajaBabu: holders(best), maichia: holders(worst) };
   }
 
   nextRound() {
@@ -577,6 +600,9 @@ class GameEngine {
       tricksWon: { ...this.tricksWon },
       roundScores: this.phase === 'round_end' || this.phase === 'game_over' ? { ...this.roundScores } : null,
       cumulativeScores: { ...this.cumulativeScores },
+      titles: this.titles
+        ? { rajaBabu: [...this.titles.rajaBabu], maichia: [...this.titles.maichia] }
+        : null,
       endGameRequests: [...this.endGameRequests],
       endGameNeeded: this._endGameTally().needed,
       waitingFor: this.phase === 'playing' && !this.pendingTrickWinner

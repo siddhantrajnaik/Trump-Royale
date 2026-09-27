@@ -127,6 +127,17 @@ td.negative{color:var(--red)}
 .trump-spades,.trump-clubs{color:var(--text)}
 
 .seat-name.offline{opacity:.45;text-decoration:line-through}
+
+/* Round titles: a small ribbon over the name, carried from the last round. */
+.title-banner{font-size:.62rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
+  padding:2px 8px;border-radius:4px;white-space:nowrap;line-height:1.3;
+  box-shadow:0 1px 4px rgba(0,0,0,.35)}
+/* Only on the render that awards it - the table redraws on every card. */
+.title-banner.fresh{animation:title-in .45s ease-out}
+.title-banner.raja{background:linear-gradient(135deg,#f7d774,#d4a017);color:#3a2600}
+.title-banner.maichia{background:linear-gradient(135deg,#8e7cc3,#5b4a8a);color:#fff}
+#your-info .title-banner{font-size:.6rem}
+@keyframes title-in{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
 .seat.offline-seat{opacity:.6}
 
 #connection-banner{position:absolute;top:8px;left:50%;transform:translateX(-50%);max-width:min(92%,460px);

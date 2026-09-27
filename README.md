@@ -6,7 +6,7 @@ browser, installs as an app, needs no database, and deploys free.
 ```bash
 npm install
 npm start        # http://localhost:3000
-npm test         # 45 tests
+npm test         # 51 tests
 ```
 
 Create a room, share the 4-character code, everyone joins, host starts.
@@ -19,6 +19,8 @@ Create a room, share the 4-character code, everyone joins, host starts.
 - **Sound** — synthesised in the browser, no audio files
 - **Shared music** — paste a YouTube link, everyone hears the same track in sync (desktop).
   Joining or leaving is each player's own call; leaving is silent for everyone else
+- **Round titles** — 👑 Raja Babu for the round's best score, 🫠 Maichia for the worst
+  (teammates share it). Host can switch them off
 - **Installable** — works as a phone home-screen app and a desktop app
 
 ## Stack
